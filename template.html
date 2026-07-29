@@ -326,6 +326,16 @@ tbody tr:hover td{background:var(--panel2)}
 <script>
 const D = JSON.parse(document.getElementById('D').textContent);
 
+/* Not every market has every ladder — US intraday is capped at 730 days and its
+   daily sweep lands separately. Every per-timeframe lookup goes through these so
+   one absent book cannot blank the whole page. */
+const _byTf = () => Object.fromEntries((D.tf_compare || []).map(x => [x.tf, x]));
+const TFG = (tf, f, d) => { const r = _byTf()[tf];
+  return r && r[f] !== undefined && r[f] !== null ? r[f] : d; };
+const HAS_TF = tf => !!_byTf()[tf];
+const TFLIST = () => (D.tf_compare || []).map(x => x.tf);
+const TFN = tf => ((D.stack || {})[tf] || [tf])[0];
+
 /* ---------- theme ----------
    Stored per browser. The diverging blue/red data ramp is NOT re-skinned in light
    mode: it encodes sign, it is CVD-validated, and green chrome next to a red bar
@@ -413,7 +423,7 @@ const hideTip = () => tip.style.opacity = 0;
 
 /* ---------- header ---------- */
 $('#sub').innerHTML = `把手冊的 GATE 1–7 與 18 項進場前提條件寫成程式，在
-  <b>${D.universe.length} 組外匯貨幣對</b>的 <b>1 小時、4 小時與日線</b>三種執行週期上重跑
+  <b>${D.universe.length} ${D.market === 'us' ? '檔美股' : '組外匯貨幣對'}</b>的 <b>1 小時、4 小時與日線</b>三種執行週期上重跑
   （共 ${((D.bars['1h'] + D.bars['4h'] + D.bars['1d']) / 1e6).toFixed(2)}M 根 K 棒），
   並用參數掃描檢驗每一個門檻值是否真的有效。`;
 $('#meta').textContent =
@@ -432,12 +442,12 @@ $('#meta').textContent =
       <b>E2（SL ≥ 2×ATR）幾乎不刷掉任何交易</b>。真正的懸崖是 E1：同一組設定下只調 RR 門檻，
       ${D.e1_cliff.map(c => `RR≥${c.rr} <b>${c.trades}</b> 筆`).join('、')}。
       手冊原文 18 項全開，只產生 ${man.stats.trades} 筆交易。</p>
-   <p><b>2 · 換到 4H 或日線不能解決，但日線比較可信。</b>
-      成本大幅下降（1H ${fmt(byTf['1h'].cost_r, 3)}R → 日線 ${fmt(byTf['1d'].cost_r, 3)}R），
-      但推動浪的 ATR 倍數幾乎不變（${fmt(byTf['1h'].leg_atr, 1)} /
-      ${fmt(byTf['4h'].leg_atr, 1)} / ${fmt(byTf['1d'].leg_atr, 1)}）——結構是碎形的，
-      幾何衝突跨週期存在。不過樣本內外的相關係數 1H ${fmt(r.by_tf['1h'], 2)} →
-      日線 <b>${fmt(r.by_tf['1d'], 2)}</b>，日線近 30 年的資料讓掃描結果不那麼像雜訊。</p>
+   <p><b>2 · 成本隨週期下降，但幾何不變。</b>
+      ${TFLIST().map(k => `${TFN(k)} 成本 ${fmt(TFG(k, "cost_r", 0), 3)}R、
+        推動浪 ${fmt(TFG(k, "leg_atr", 0), 1)}×ATR`).join("；")}。
+      成本吃掉的比例逐級變小，但推動浪的 ATR 倍數幾乎不動——結構是碎形的，
+      E1/E2 的幾何衝突跨週期存在。樣本內外相關係數：
+      ${TFLIST().map(k => `${TFN(k)} ${fmt((r.by_tf || {})[k], 2)}`).join("、")}。</p>
    <p style="margin-bottom:0"><b>3 · 有效的是 GATE 2／3／4／6，不是 E1 的數字。</b>
       成熟度上限（推動浪 ≤ 2）、日線階段確認、共振數 ≥ 4、確認 K 棒，在多數設定下都提升期望值。
       但 ${D.sweep_total.toLocaleString()} 次回測中只有 <b>${r.both_positive}</b> 組樣本內外都
@@ -528,12 +538,14 @@ function liveCard(p) {
   const [lab, cls] = STATE[p.state];
   const dir = p.dr > 0 ? '多' : '空';
   const tfn = (D.stack[p.tf] || [p.tf])[0];
+  const U = p.unit || 'pips';
+  const C_isfx = x => (x.unit || 'pips') === 'pips';        // FX quotes pips, equities dollars/share
   const near = p.state === 'armed'
     ? `<div class="dist"><i style="width:${Math.max(2, Math.min(100, 100 - p.gap_pct * 40))}%"></i></div>
        <div class="mut" style="font-size:12px;margin-top:4px;font-family:var(--mono)">
-         距進場價 ${Math.abs(p.gap_pips)} pips（${p.gap_pct}%）· 設價格提醒於 ${p.entry}</div>` : '';
+         距進場價 ${Math.abs(p.gap_pips)} ${U}（${p.gap_pct}%）· 設價格提醒於 ${p.entry}</div>` : '';
   const px = [['進場', p.entry], ['停損 SL', p.sl], ['停利 TP', p.tp],
-              ['手數', p.lots], ['風險', '$' + Math.round(p.risk_usd).toLocaleString()],
+              [p.size_label || '手數', C_isfx(p) ? p.lots : Math.round(p.lots)], ['風險', '$' + Math.round(p.risk_usd).toLocaleString()],
               ['RR', p.rr]];
   return `<div class="sig ${p.state}">
     <div class="hd">
@@ -550,8 +562,8 @@ function liveCard(p) {
     <div class="when">
       <span class="lb">何時進場</span>${p.entry_rule}
       <span class="lb">何時出場（三選一，先到先算）</span>
-      1 · <b>停利</b> ${p.tp} → +${p.reward_pips} pips ≈ +$${Math.round(p.reward_usd).toLocaleString()}<br>
-      2 · <b>停損</b> ${p.sl} → −${p.risk_pips} pips ≈ −$${Math.round(p.risk_usd).toLocaleString()}<br>
+      1 · <b>停利</b> ${p.tp} → +${p.reward_pips} ${U} ≈ +$${Math.round(p.reward_usd).toLocaleString()}<br>
+      2 · <b>停損</b> ${p.sl} → −${p.risk_pips} ${U} ≈ −$${Math.round(p.risk_usd).toLocaleString()}<br>
       3 · <b>結構失效</b>：${tfn} K 棒收線越過 ${p.invalidate} → 手動平倉，不要等它回來<br>
       <span class="mut">未成交則 ${p.expires} 計畫到期作廢；已成交最長持有至 ${p.max_hold_until}。
       下單時 SL 與 TP 必須同時掛上，然後關掉平台。</span>
@@ -716,8 +728,7 @@ function panelBars(node, rows, metrics) {
   ]);
   $('#tfretcap').innerHTML = `同一組規則、同一個 $100,000 帳戶、單筆風險 1%，
     只換執行週期。<b>總報酬不能直接比</b>——1H 只有
-    ${T.find(x => x.tf === '1h').years} 年資料，日線有
-    ${T.find(x => x.tf === '1d').years} 年——所以這裡用年化值。
+    ${TFLIST().map(k => `${TFN(k)} ${TFG(k, "years", "?")} 年`).join("、")}——所以這裡用年化值。
     ${T.map(t => `${t.label} 總報酬 ${pct(t.total_return, 1)}`).join(' · ')}。`;
 
 }
@@ -752,8 +763,9 @@ function panelBars(node, rows, metrics) {
         <td class="${t.is_exp > 0 ? 'up' : 'dn'}">${sgn(fmt(t.is_exp, 3))}</td>
         <td class="${t.oos_exp > 0 ? 'up' : 'dn'}">${sgn(fmt(t.oos_exp, 3))}</td></tr>`;
     }).join('') + '</tbody>';
-  $('#ladcap').innerHTML = `每個週期用自己的全部歷史（日線 ${L[2].years} 年、
-    1 小時 ${L[0].years} 年），所以 CAGR 之間<b>不能直接比</b>——下圖才是可比的。`;
+  $('#ladcap').innerHTML = `每個週期用自己的全部歷史（${L.map(x =>
+    `${x.label} ${x.years} 年`).join('、')}），所以 CAGR 之間<b>不能直接比</b>——`
+    + (K.length > 1 ? '下圖才是可比的。' : '目前只有一個週期有掃描資料。');
 
   // four curves over the window all three ladders share, normalised to 100
   const SER = [['1h', '#3987e5'], ['4h', '#d95926'], ['1d', '#199e70'], ['all', '#eda100']];
@@ -792,8 +804,8 @@ function panelBars(node, rows, metrics) {
   $('#ladeqcap').innerHTML = `共同期間 <b>${D.common_start}</b> 起（1 小時的資料只到這裡，
     所以只有這段能公平比較），起始值都設為 100，單筆風險 1%，右側標註為年化報酬。
     「三週期組合」是三個階梯<b>共用同一個帳戶</b>：相關性與同時持倉上限跨週期一起計算，
-    所以它不是三倍槓桿。組合的年均 R 最高（<b>${fmt(cb.r_per_year, 1)}R</b> vs 單跑 1 小時的
-    ${fmt(K.find(k => k.tf === '1h').r_per_year, 1)}R），但最大回撤也最大
+    所以它不是三倍槓桿。組合的年均 R 最高（<b>${fmt(cb.r_per_year, 1)}R</b> vs 單跑${TFN(K[0].tf)}的
+    ${fmt(K[0].r_per_year, 1)}R），但最大回撤也最大
     （${pct(cb.max_dd)}）——因為 ${Object.values(cb.rejects || {}).reduce((a, b) => a + b, 0)}
     筆被帳戶層規則擋掉，擋掉的多半是原本 1 小時能吃到的單。`;
 }
@@ -1113,7 +1125,7 @@ function refreshFreq() {
   $('#freqlab').textContent = m === 'tpy'
     ? '每年交易筆數（三張圖共用同一色階）' : (MLABEL[m] || m) + '（三張圖共用同一色階）';
   $('#freqline').innerHTML = `<b>筆數不能直接比，頻率可以。</b>
-    1H 只有 ${byTf['1h'].years} 年資料、日線有 ${byTf['1d'].years} 年，所以同一格的「總筆數」在日線上
+    各週期資料長度不同（${TFLIST().map(k => `${TFN(k)} ${TFG(k, "years", "?")} 年`).join("、")}），所以同一格的「總筆數」在長週期上
     天生比較大。這裡把它換算成<b>每年幾筆</b>，並且把三個週期拆成三張圖、共用同一個色階，
     才能看出同一組門檻在不同週期上實際會讓你交易多密。
     手冊的頻率預算是<b>每週 3–4 筆</b>（約每年 ${(3.5 * 52).toFixed(0)} 筆）。`;
@@ -1142,7 +1154,7 @@ buildFreqCtrls(); refreshFreq();
     s += `<circle cx="${X(a).toFixed(1)}" cy="${Y(b).toFixed(1)}" r="2.6"
        fill="${TFC[tf] || '#898781'}" fill-opacity=".4"/>`;
   });
-  Object.entries(TFC).forEach(([k, v], i) => {
+  Object.entries(TFC).filter(([k]) => HAS_TF(k)).forEach(([k, v], i) => {
     s += `<circle cx="${P + 8}" cy="${22 + i * 17}" r="4" fill="${v}"/>
       <text x="${P + 18}" y="${26 + i * 17}" fill="#a6b3c2" font-size="11"
         font-family="ui-monospace,monospace">${k}  r=${fmt(r.by_tf[k], 2)}</text>`;
@@ -1158,8 +1170,8 @@ buildFreqCtrls(); refreshFreq();
   const rows = [
     ['納入的設定組數', r.eligible.toLocaleString()],
     ['樣本內 / 樣本外 相關係數（全部）', fmt(r.corr_is_oos, 3)],
-    ['　└ 1H / 4H / 日線',
-     `${fmt(r.by_tf['1h'], 2)} / ${fmt(r.by_tf['4h'], 2)} / ${fmt(r.by_tf['1d'], 2)}`],
+    ['　└ 各週期',
+     TFLIST().map(k => `${TFN(k)} ${fmt((r.by_tf || {})[k], 2)}`).join(' / ')],
     ['樣本內前 25 名 · 樣本內平均', sgn(fmt(r.top25_is, 3)) + 'R'],
     ['樣本內前 25 名 · 樣本外平均', sgn(fmt(r.top25_oos, 3)) + 'R'],
     ['全部設定 · 樣本外平均', sgn(fmt(r.all_oos, 3)) + 'R'],

@@ -61,6 +61,40 @@ LADDERS = {
     },
 }
 
+# US equities get their own numbers. Same selection rule as FX, run over the S&P
+# 500 sweep: 1,653 cells were positive in both halves; this is the centre of that
+# region (2,408 trades, IS +0.099 / OOS +0.107, t-stat 3.9). band_atr 1.0 with a
+# zone stop again lands the stop ~2.2xATR out, so E2 holds without filtering.
+LADDERS_US = {
+    "4h": {
+        "tf": "4h", "min_swing": 2.0, "band_atr": 1.0,
+        "entry_mode": "limit", "sl_mode": "zone",
+        "min_conf": 3, "min_rr": 1.0, "sl_atr_mult": 1.5, "max_legs": 99,
+        "mtf": "off", "confirm": "any",
+    },
+    "1d": {
+        "tf": "1d", "min_swing": 2.0, "band_atr": 1.0,
+        "entry_mode": "limit", "sl_mode": "zone",
+        "min_conf": 3, "min_rr": 1.0, "sl_atr_mult": 1.5, "max_legs": 99,
+        "mtf": "off", "confirm": "any",
+    },
+}
+
+LADDERS_BY_MARKET = {"fx": LADDERS, "us": LADDERS_US}
+
+
+def ladders_for(sw):
+    """The configured ladders, minus any timeframe the sweep has no data for.
+
+    A market is often part-built — the US daily sweep runs long after the 4H one —
+    and a dashboard that 404s until every timeframe lands is worse than one that
+    shows what it has.
+    """
+    have = set(sw.tf.unique())
+    L = LADDERS_BY_MARKET.get(C.MARKET, LADDERS)
+    return {k: v for k, v in L.items() if k in have}
+
+
 # The manual's thresholds exactly as printed in §07, for the side-by-side.
 MANUAL = {
     "tf": "1h", "min_swing": 3.0, "band_atr": 0.75,
@@ -206,7 +240,7 @@ def tf_compare(cand, sw, cfgs):
     grid average cannot.
     """
     out = []
-    for tf in C.EXEC_TFS:
+    for tf in cfgs:
         c = cfgs[tf]
         sub = _structural(cand, c)
         e = sub[sub.stage == gates.STAGE["entered"]]
@@ -257,7 +291,7 @@ def tf_compare(cand, sw, cfgs):
     return out
 
 
-def ladder_runs(cand):
+def ladder_runs(cand, LAD):
     """Each ladder as its own account, plus all three sharing one account.
 
     The combined run is the point of having three ladders: 4H and daily are starved
@@ -267,7 +301,7 @@ def ladder_runs(cand):
     timeframes, which is what stops this from being three times the leverage.
     """
     out, pooled = [], []
-    for tf, cfg in LADDERS.items():
+    for tf, cfg in LAD.items():
         sub = _structural(cand, cfg)
         e = sub[sub.stage == gates.STAGE["entered"]]
         sel = B.sequence(e[_mask(e, cfg)]).copy()
@@ -280,7 +314,7 @@ def ladder_runs(cand):
     # the union would be a daily-only CAGR with 2.8 years of everything else stapled on.
     start = max(p.entry_time.min() for p in pooled if len(p))
     common = []
-    for p, tf in zip(pooled, LADDERS):
+    for p, tf in zip(pooled, LAD):
         s = p[p.entry_time >= start]
         common.append(_acct(s, C.TF_LABEL[tf], tf, split_at(s)))
     allsel = pd.concat([p[p.entry_time >= start] for p in pooled], ignore_index=True)
@@ -336,10 +370,14 @@ def main():
     sw = pd.read_csv(C.art("sweep","csv"))
     cand = pd.read_parquet(C.art("candidates","parquet"))
 
-    ref = run_config(cand, REFERENCE, "Reference (sweep plateau)")
-    man = run_config(cand, MANUAL, "Manual §07 as written")
-    tfc = tf_compare(cand, sw, LADDERS)
-    ladders, common, common_start = ladder_runs(cand)
+    _lad = ladders_for(sw)
+    _ref = REFERENCE if REFERENCE["tf"] in _lad else next(iter(_lad.values()))
+    _man = dict(MANUAL, tf=_ref["tf"])
+    ref = run_config(cand, _ref, "Reference (sweep plateau)")
+    man = run_config(cand, _man, "Manual §07 as written")
+    LAD = ladders_for(sw)
+    tfc = tf_compare(cand, sw, LAD)
+    ladders, common, common_start = ladder_runs(cand, LAD)
 
     tk, sel = ref.pop("trades"), ref.pop("selected")
     man.pop("trades"), man.pop("selected")
@@ -388,9 +426,9 @@ def main():
         "costs": {s: round(C.cost_pips(s), 2) for s in C.SYMBOLS},
         "account": C.ACCOUNT,
         "reference": ref, "manual": man, "tf_compare": tfc,
-        "ladders": ladders, "ladder_params": LADDERS,
+        "ladders": ladders, "ladder_params": LAD,
         "common": common, "common_start": common_start,
-        "e1_cliff": e1_cliff(cand, REFERENCE),
+        "e1_cliff": e1_cliff(cand, _ref),
         "sweep": pack_sweep(sw), "sweep_total": int(len(sw)),
         "robustness": rob,
         "heat_pair": bysym,

@@ -18,7 +18,7 @@ import config as C
 import gates
 import structure as S
 from loader import frame, htf_barrier, bars
-from report import LADDERS
+from report import LADDERS_BY_MARKET
 
 LOT = 100_000.0                       # units in one standard lot
 BAR = {"1h": pd.Timedelta("1h"), "4h": pd.Timedelta("4h"), "1d": pd.Timedelta("1D")}
@@ -59,10 +59,13 @@ def _entry_rule(mode, dr, near, dec, tf):
 
 def scan_live(equity, tf, quotes):
     """Every live plan on one execution timeframe, with entry and exit timing."""
-    P = LADDERS[tf]
+    P = LADDERS_BY_MARKET.get(C.MARKET, LADDERS_BY_MARKET['fx'])[tf]
     out = []
     for sym in C.SYMBOLS:
-        b = frame(sym, tf, 5, P["min_swing"])
+        try:
+            b = frame(sym, tf, 5, P["min_swing"], _market=C.MARKET)
+        except FileNotFoundError:
+            continue
         d, st = b["d"], b["st"]
         o, h, l, c = d.open.values, d.high.values, d.low.values, d.close.values
         atr, e25, e50 = d.atr.values, d.ema25.values, d.ema50.values
@@ -147,11 +150,14 @@ def scan_live(equity, tf, quotes):
         dead = (dr > 0 and px < z["lo"] - 0.5 * atr[i]) or \
                (dr < 0 and px > z["hi"] + 0.5 * atr[i])
 
-        pipv = pip_value_usd(sym, quotes.get(sym, px), quotes)
+        if C.is_fx(sym):
+            pipv = pip_value_usd(sym, quotes.get(sym, px), quotes)
+        else:
+            pipv = C.pip_size(sym)          # $0.01 move on one share = $0.01
         risk_usd = equity * C.ACCOUNT["risk_pct"]
         pips = risk / C.pip_size(sym)
         lots = risk_usd / max(pips * pipv, 1e-9)
-        dec = 3 if C.pair(sym)[1] in ("JPY", "HUF") else 5
+        dec = (3 if C.pair(sym)[1] in ("JPY", "HUF") else 5) if C.is_fx(sym) else 2
         last_close = pd.Timestamp(dates[i]) + BAR[tf]
 
         state = ("invalid" if dead else "ready" if not failed and in_zone
@@ -167,13 +173,15 @@ def scan_live(equity, tf, quotes):
             "entry": round(float(entry), dec), "sl": round(float(sl), dec),
             "tp": round(float(tp), dec),
             "invalidate": round(float(far - dr * 0.5 * atr[i]), dec),
-            "gap_pips": round(float(gap) / C.pip_size(sym), 1),
+            "gap_pips": round(float(gap) / (C.pip_size(sym) if C.is_fx(sym) else 1.0), 2),
             "gap_pct": round(abs(gap) / px * 100, 2),
             "rr": round(float(rr), 2), "sl_atr": round(float(sl_atr), 2),
             "n_conf": int(z["n"]),
             "factors": [k for k, v in z["fac"].items() if v],
             "legs": int(legs), "nlab": int(nlab), "retrace": round(float(z["r"]), 3),
-            "risk_pips": round(pips, 1), "reward_pips": round(reward / C.pip_size(sym), 1),
+            "unit": "pips" if C.is_fx(sym) else "美元/股",
+            "size_label": "手數" if C.is_fx(sym) else "股數",
+            "risk_pips": round(pips, 1), "reward_pips": round(reward / (C.pip_size(sym) if C.is_fx(sym) else 1.0), 2),
             "lots": round(float(lots), 2), "risk_usd": round(float(risk_usd), 2),
             "reward_usd": round(float(risk_usd * rr), 2),
             "checks": {k: bool(v) for k, v in checks.items()}, "failed": failed,
@@ -195,8 +203,18 @@ def main():
     if os.path.exists(stp):
         equity = json.load(open(stp)).get("equity", equity)
 
-    quotes = {s: float(bars(s, "1h").close.iloc[-1]) for s in C.SYMBOLS}
-    tfs = [a for a in sys.argv[1:] if a in C.EXEC_TFS] or C.EXEC_TFS
+    # not every name has an intraday file (US intraday is capped at 730 days and a
+    # few listings are younger), so fall back to the daily close for the quote
+    quotes = {}
+    for s in C.SYMBOLS:
+        for tf in ("1h", "1d"):
+            try:
+                quotes[s] = float(bars(s, tf, C.MARKET).close.iloc[-1])
+                break
+            except FileNotFoundError:
+                continue
+    _L = LADDERS_BY_MARKET.get(C.MARKET, LADDERS_BY_MARKET['fx'])
+    tfs = [a for a in sys.argv[1:] if a in _L] or list(_L)
     plans = []
     for tf in tfs:
         plans += scan_live(equity, tf, quotes)
@@ -213,17 +231,20 @@ def main():
         print(f"  {C.TF_LABEL[tf]}執行（方向看{C.TF_LABEL[s['high']]}、"
               f"空間看{C.TF_LABEL[s['mid']]}）→ {len(n)} 個計畫，"
               f"{sum(1 for p in n if p['state'] == 'ready')} 個可執行")
-    print(f"共 {len(C.SYMBOLS)} 組貨幣對 × {len(tfs)} 個週期"
+    _unit = "組貨幣對" if C.MARKET == "fx" else "檔股票"
+    print(f"共 {len(C.SYMBOLS)} {_unit} × {len(tfs)} 個週期"
           f"  ·  可執行 {len(ready)}  等待進場 {len(armed)}\n")
 
     for p in (ready + armed)[:12]:
         tag = "✓ 現在可下單" if p["state"] == "ready" else "· 等待價格到區"
         print(f"[{p['tf']:>3s}] {p['name']:9s} {'多' if p['dr'] > 0 else '空'}  {tag}")
+        sz = f"手數 {p['lots']:.2f}" if C.is_fx(p["sym"]) else f"股數 {p['lots']:.0f}"
         print(f"       進場 {p['entry']}  SL {p['sl']}  TP {p['tp']}  "
-              f"RR {p['rr']:.2f}  手數 {p['lots']:.2f}  風險 ${p['risk_usd']:,.0f}")
+              f"RR {p['rr']:.2f}  {sz}  風險 ${p['risk_usd']:,.0f}")
         print(f"       {p['entry_rule']}")
-        print(f"       出場：TP {p['tp']}（+{p['reward_pips']} pips）／"
-              f"SL {p['sl']}（−{p['risk_pips']} pips）／"
+        u = "pips" if C.is_fx(p["sym"]) else "美元/股"
+        print(f"       出場：TP {p['tp']}（+{p['reward_pips']} {u}）／"
+              f"SL {p['sl']}（−{p['risk_pips']} {u}）／"
               f"收線越過 {p['invalidate']} 即作廢／計畫 {p['expires']} 到期")
         if p["state"] == "armed":
             print(f"       距進場區 {abs(p['gap_pips'])} pips（{p['gap_pct']}%）"
@@ -238,7 +259,8 @@ def main():
 
     out = {"as_of": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
            "equity": equity, "scanned": len(C.SYMBOLS) * len(tfs),
-           "tfs": tfs, "params": {t: LADDERS[t] for t in tfs}, "plans": plans,
+           "tfs": tfs, "params": {t: LADDERS_BY_MARKET.get(C.MARKET, LADDERS_BY_MARKET["fx"])[t]
+                     for t in tfs}, "plans": plans,
            "account": C.ACCOUNT}
     path = C.art("plan","json")
     json.dump(out, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
