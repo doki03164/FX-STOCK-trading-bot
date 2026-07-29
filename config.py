@@ -5,8 +5,35 @@ so a broker change is a one-file edit rather than a grep.
 """
 import os
 
+import markets as M
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA = os.path.join(HERE, "data")
+
+# Which market the whole process is looking at. Every script accepts --market and
+# calls set_market() before touching anything else; the engine itself never asks.
+MARKET = "fx"
+DATA = os.path.join(HERE, "data", "fx")
+
+
+def set_market(m):
+    """Rebind the module-level universe, data directory and cost model."""
+    global MARKET, DATA, UNIVERSE, SYMBOLS
+    if m not in M.MARKETS:
+        raise ValueError(f"unknown market {m!r}; expected one of {list(M.MARKETS)}")
+    MARKET = m
+    DATA = os.path.join(HERE, "data", m)
+    UNIVERSE = M.FX_UNIVERSE if m == "fx" else M.us_universe()
+    SYMBOLS = list(UNIVERSE)
+    return m
+
+
+def suffix(name, ext):
+    """Per-market artefact name, e.g. sweep -> sweep_us.csv."""
+    return f"{name}_{MARKET}.{ext}"
+
+
+def art(name, ext):
+    return os.path.join(HERE, suffix(name, ext))
 
 # ---------------------------------------------------------------- universe
 # Yahoo ticker -> display name. Forex only, per the manual's watchlist shape
@@ -68,9 +95,26 @@ def pair(sym):
     return s[:3], s[3:]
 
 
+def is_fx(sym):
+    return sym.endswith("=X")
+
+
 def pip_size(sym):
-    """JPY and HUF quote to two decimals, everything else to four."""
+    """FX: JPY and HUF quote to two decimals, others four. Equities: one cent."""
+    if not is_fx(sym):
+        return 0.01
     return 0.01 if pair(sym)[1] in ("JPY", "HUF") else 0.0001
+
+
+def cost_px(sym, price=None):
+    """Round-trip dealing cost in PRICE units — the one number the engine needs.
+
+    FX quotes a fixed spread in pips regardless of level; equities quote it as a
+    fraction of notional, so a $500 share costs ten times a $50 one to trade.
+    """
+    if is_fx(sym):
+        return cost_pips(sym) * pip_size(sym)
+    return float(price or 100.0) * M.US_COST_BPS / 1e4
 
 
 # Round-turn dealing cost in pips: raw spread + commission, sized for a prop-firm
@@ -101,6 +145,8 @@ SLIPPAGE_PIPS = 0.3     # market order on the confirmation close
 
 
 def cost_pips(sym):
+    if not is_fx(sym):
+        return 0.0
     return SPREAD_PIPS.get(sym, 2.0) + COMMISSION_PIPS + SLIPPAGE_PIPS
 
 

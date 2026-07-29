@@ -92,6 +92,15 @@ def main(quick=False):
     if quick:
         struct.update(QUICK)
 
+    # a market may not have every timeframe cached yet (US hourly is a 730-day
+    # download that lands after the daily one); drop what has no data
+    have = {tf for tf in struct["tf"]
+            if os.path.isdir(os.path.join(C.DATA, tf))
+            and len(os.listdir(os.path.join(C.DATA, tf))) > 10}
+    if have and have != set(struct["tf"]):
+        print(f"  (skipping {sorted(set(struct['tf']) - have)} — no cached bars)")
+        struct["tf"] = [t for t in struct["tf"] if t in have]
+
     scfg = [s for s in _grid(struct)
             # a resting limit order cannot be conditioned on the shape of the bar that
             # fills it, so only the two confirmation-aware modes vary sl_mode/confirm
@@ -140,9 +149,9 @@ def main(quick=False):
               f"({time.time()-t0:.0f}s)")
 
     sw = pd.DataFrame(rows)
-    sw.to_csv(os.path.join(HERE, "sweep.csv"), index=False)
+    sw.to_csv(C.art("sweep", "csv"), index=False)
     allc = pd.concat(keep_cands, ignore_index=True)
-    allc.to_parquet(os.path.join(HERE, "candidates.parquet"), index=False)
+    allc.to_parquet(C.art("candidates", "parquet"), index=False)
 
     print(f"\n{len(sw)} runs -> sweep.csv   ({time.time()-t0:.0f}s)")
     print("\nmean full-sample expectancy by execution timeframe:")
@@ -162,4 +171,8 @@ def main(quick=False):
 
 
 if __name__ == "__main__":
-    main(quick="--quick" in sys.argv)
+    a = sys.argv[1:]
+    C.set_market(a[a.index("--market") + 1] if "--market" in a else "fx")
+    if "--tf" in a:
+        STRUCTURAL["tf"] = a[a.index("--tf") + 1].split(",")
+    main(quick="--quick" in a)

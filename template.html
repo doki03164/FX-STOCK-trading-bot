@@ -6,8 +6,19 @@
   --bg:#0e1116;--panel:#161b23;--panel2:#1c232d;--line:#2a333f;
   --tx:#e6edf3;--tx2:#a6b3c2;--tx3:#7d8b9b;
   --pos:#3987e5;--neg:#d03b3b;--acc:#f0b429;--good:#0ca30c;--warn:#fab219;
-  --mid:#2a333f;
+  --mid:#2a333f;--ramp0:#2a333f;
   --mono:ui-monospace,"SFMono-Regular",Consolas,monospace;
+  color-scheme:dark;
+}
+/* Light theme: white surfaces with green as the accent. The data colours stay
+   blue/red — they carry meaning (positive/negative) and are validated for CVD, so
+   they must not be re-skinned to match the chrome. Green is chrome only. */
+:root[data-theme="light"]{
+  --bg:#ffffff;--panel:#f7faf7;--panel2:#eef5ee;--line:#d7e5d7;
+  --tx:#0d1b0f;--tx2:#3d5741;--tx3:#6b8470;
+  --pos:#2a78d6;--neg:#c0322e;--acc:#0f8b4c;--good:#0f8b4c;--warn:#b57d00;
+  --mid:#e3efe3;--ramp0:#eef5ee;
+  color-scheme:light;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);
@@ -145,6 +156,18 @@ tbody tr:hover td{background:var(--panel2)}
 .disc{margin-top:56px;padding:20px;border:1px solid var(--line);border-radius:12px;
   background:var(--panel);font-size:13px;color:var(--tx3)}
 .disc .t{color:var(--tx2);font-weight:600;margin-bottom:8px}
+
+:root[data-theme="light"] .bar{background:rgba(255,255,255,.94)}
+:root[data-theme="light"] .tip{background:#0d1b0f;color:#fff}
+:root[data-theme="light"] .btn{color:#fff}
+:root[data-theme="light"] .kicker{color:var(--acc)}
+:root[data-theme="light"] .sig,
+:root[data-theme="light"] .card,
+:root[data-theme="light"] figure,
+:root[data-theme="light"] .kpi{box-shadow:0 1px 2px rgba(13,27,15,.05)}
+.thm{background:var(--panel2);color:var(--tx2);border:1px solid var(--line);
+  border-radius:7px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer}
+.thm:hover{color:var(--tx)}
 </style>
 
 <div class="wrap">
@@ -153,6 +176,7 @@ tbody tr:hover td{background:var(--panel2)}
   <span class="txt" id="bar_txt">—</span>
   <span class="sp"></span>
   <label class="chk"><input type="checkbox" id="bar_auto" checked> 自動更新</label>
+  <button class="thm" id="bar_theme" title="切換淺色/深色">◐</button>
   <button class="btn ghost" id="bar_log" title="顯示最近的執行紀錄">紀錄</button>
   <button class="btn" id="bar_scan">重新掃描</button>
 </div>
@@ -164,12 +188,14 @@ tbody tr:hover td{background:var(--panel2)}
   <h1>交易操作手冊 — 策略回測儀表板</h1>
   <p class="sub" id="sub"></p>
   <div class="meta" id="meta"></div>
+  <button class="thm" id="hdr_theme" style="margin-top:12px">◐ 切換淺色/深色</button>
 </header>
 
 
 <nav class="tabs">
   <button class="tb on" data-tab="live">即時訊號</button>
   <button class="tb" data-tab="research">回測研究</button>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:4px" id="mktnav"></span>
 </nav>
 
 <section id="tab-live">
@@ -299,6 +325,21 @@ tbody tr:hover td{background:var(--panel2)}
 <script type="application/json" id="D">/*__DATA__*/</script>
 <script>
 const D = JSON.parse(document.getElementById('D').textContent);
+
+/* ---------- theme ----------
+   Stored per browser. The diverging blue/red data ramp is NOT re-skinned in light
+   mode: it encodes sign, it is CVD-validated, and green chrome next to a red bar
+   would read as a third data colour. Only the surfaces and the accent change. */
+const THEME = {
+  get() { try { return localStorage.getItem('fxbot-theme') || 'dark'; } catch (e) { return 'dark'; } },
+  set(v) {
+    document.documentElement.setAttribute('data-theme', v);
+    try { localStorage.setItem('fxbot-theme', v); } catch (e) {}
+    if (window.__redraw) window.__redraw();
+  },
+  toggle() { THEME.set(THEME.get() === 'dark' ? 'light' : 'dark'); },
+};
+document.documentElement.setAttribute('data-theme', THEME.get());
 const $ = s => document.querySelector(s);
 const el = (t, c) => { const e = document.createElement(t); if (c) e.className = c; return e; };
 const fmt = (v, d = 2) => v === null || v === undefined || !isFinite(v) ? '–' : v.toFixed(d);
@@ -332,8 +373,14 @@ function ok2hex(L, A, B) {
     .toString(16).padStart(2, '0')).join('');
 }
 const OK = h => hex2ok(h);
-const ARM_POS = ['#2a333f', '#2a78d6', '#9ec5f4'].map(OK);
-const ARM_NEG = ['#2a333f', '#d03b3b', '#f0a8a8'].map(OK);
+const RAMP0 = () => THEME.get() === 'light' ? '#eef5ee' : '#2a333f';
+let ARM_POS = [RAMP0(), '#2a78d6', '#9ec5f4'].map(OK);
+let ARM_NEG = [RAMP0(), '#d03b3b', '#f0a8a8'].map(OK);
+function reRamp() {
+  ARM_POS = [RAMP0(), '#2a78d6', THEME.get() === 'light' ? '#1c5cab' : '#9ec5f4'].map(OK);
+  ARM_NEG = [RAMP0(), '#d03b3b', THEME.get() === 'light' ? '#8f2422' : '#f0a8a8'].map(OK);
+}
+reRamp();
 function ramp(arm, t) {                    // t in 0..1 along a 3-stop arm
   const u = Math.max(0, Math.min(1, t)) * 2, i = Math.min(1, Math.floor(u)), f = u - i;
   const a = arm[i], b = arm[i + 1];
@@ -434,8 +481,34 @@ if (SERVED) {
     await fetch('/api/scan'); setTimeout(poll, 400);
   });
   $('#bar_log').addEventListener('click', () => $('#bar_logbox').classList.toggle('hidden'));
-  poll(); setInterval(poll, 2000);
+  poll();
+  // 10s: fast enough that a signal never sits unseen for long, slow enough that
+  // the server is not re-scanning on every tick — the SCAN cadence is the bar
+  // close, this is only the read side.
+  setInterval(poll, 10000);
 }
+
+/* market switcher — only meaningful when app.py is serving both books */
+if (location.protocol.startsWith('http')) {
+  const here = D.market || 'fx';
+  $('#mktnav').innerHTML = [['fx', '外匯', '/'], ['us', '美股', '/us']]
+    .map(([k, lab, href]) => `<a href="${href}" class="tb" style="text-decoration:none;
+      ${k === here ? 'color:var(--acc);border-bottom-color:var(--acc)' : ''}">${lab}</a>`)
+    .join('');
+}
+
+/* ---------- theme wiring + 10s live refresh ---------- */
+['bar_theme', 'hdr_theme'].forEach(id => {
+  const b = $('#' + id);
+  if (b) b.addEventListener('click', THEME.toggle);
+});
+window.__redraw = () => {
+  reRamp();
+  ['ramp', 'ramp2', 'ramp4'].forEach(paintRamp);
+  if ($('#ramp5')) $('#ramp5').style.background = 'linear-gradient(90deg,' +
+    Array.from({ length: 16 }, (_, i) => seqColor(i / 15, 1)).join(',') + ')';
+  try { refreshHeat(); refreshFreq(); } catch (e) {}
+};
 
 /* ---------- tabs ---------- */
 document.querySelectorAll('.tb').forEach(b => b.addEventListener('click', () => {

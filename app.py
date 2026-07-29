@@ -30,6 +30,9 @@ def say(msg):
         STATE["log"] = (STATE["log"] + [line])[-60:]
 
 
+MARKETS = ["fx", "us"]
+
+
 def run(script, *args, quiet=True):
     say(f"→ {script} {' '.join(args)}".rstrip())
     r = subprocess.run([sys.executable, os.path.join(HERE, script), *args],
@@ -42,23 +45,24 @@ def run(script, *args, quiet=True):
     return r.returncode == 0
 
 
-def have_data():
-    d = os.path.join(C.DATA, "1h")
-    return os.path.isdir(d) and len(os.listdir(d)) >= len(C.SYMBOLS) * 0.8
+def have_data(market="fx"):
+    d = os.path.join(C.HERE, "data", market, "1d")
+    return os.path.isdir(d) and len(os.listdir(d)) > 20
 
 
-def setup():
+def setup(markets):
     """Do only what is missing, so a re-launch costs seconds rather than minutes."""
-    if not have_data():
-        say("首次啟動：下載歷史報價（約 10 分鐘，只做一次）…")
-        run("fetch.py", quiet=False)
-    if not os.path.exists(os.path.join(HERE, "sweep.csv")):
-        say("首次啟動：執行參數掃描（約 10 分鐘，只做一次）…")
-        run("sweep.py", quiet=False)
-    if not os.path.exists(os.path.join(HERE, "plan.json")):
-        run("bot.py", "--nofetch")
-    if not os.path.exists(os.path.join(HERE, "dashboard.html")):
-        run("report.py")
+    for m in markets:
+        if not have_data(m):
+            say(f"首次啟動：下載 {m} 歷史報價（約 10 分鐘，只做一次）…")
+            run("fetch_us.py" if m == "us" else "fetch.py", quiet=False)
+        if not os.path.exists(os.path.join(HERE, f"sweep_{m}.csv")):
+            say(f"首次啟動：執行 {m} 參數掃描（約 15 分鐘，只做一次）…")
+            run("sweep.py", "--market", m, quiet=False)
+        if not os.path.exists(os.path.join(HERE, f"plan_{m}.json")):
+            run("bot.py", "--nofetch", "--market", m)
+        if not os.path.exists(os.path.join(HERE, f"dashboard_{m}.html")):
+            run("report.py", "--market", m)
 
 
 def scan(fetch=True):
@@ -67,14 +71,17 @@ def scan(fetch=True):
             return False
         STATE["busy"], STATE["step"] = True, "抓取報價"
     try:
-        if fetch:
-            run("fetch.py", "--update")
-        with LOCK:
-            STATE["step"] = "掃描 GATE 1–7"
-        run("bot.py", "--nofetch")
-        with LOCK:
-            STATE["step"] = "重建儀表板"
-        run("report.py")
+        for m in MARKETS:
+            with LOCK:
+                STATE["step"] = f"{m} 抓取報價"
+            if fetch:
+                run("fetch.py", "--update", "--market", m)
+            with LOCK:
+                STATE["step"] = f"{m} 掃描 GATE 1–7"
+            run("bot.py", "--nofetch", "--market", m)
+            with LOCK:
+                STATE["step"] = f"{m} 重建儀表板"
+            run("report.py", "--market", m)
         with LOCK:
             STATE["last"] = time.strftime("%Y-%m-%d %H:%M:%S")
         say("完成")
@@ -120,8 +127,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         p = urllib.parse.urlparse(self.path).path
-        if p in ("/", "/index.html"):
-            self.path = "/dashboard.html"
+        if p in ("/", "/index.html", "/fx"):
+            self.path = "/dashboard_fx.html"
+        elif p in ("/us", "/us.html"):
+            self.path = "/dashboard_us.html"
         elif p == "/api/status":
             with LOCK:
                 s = {k: STATE[k] for k in ("busy", "step", "last")}
@@ -142,7 +151,9 @@ def main():
     print("=" * 70)
     print("  fxbot — 交易操作手冊 策略儀表板")
     print("=" * 70)
-    setup()
+    want = [m for m in MARKETS if m in sys.argv] or MARKETS
+    MARKETS[:] = want
+    setup(want)
 
     if "--no-watch" not in sys.argv:
         threading.Thread(target=watcher, daemon=True).start()

@@ -87,7 +87,7 @@ def scan(sym, tf="1h", swing_n=5, min_swing=2.0, band_atr=0.5, entry_mode="marke
     is the stricter structural invalidation and does not punish a deep rejection
     wick with an oversized stop.
     """
-    b = frame(sym, tf, swing_n, min_swing)
+    b = frame(sym, tf, swing_n, min_swing, _market=C.MARKET)
     d, st = b["d"], b["st"]
     o, h, l, c = d.open.values, d.high.values, d.low.values, d.close.values
     atr, e25, e50 = d.atr.values, d.ema25.values, d.ema50.values
@@ -96,7 +96,6 @@ def scan(sym, tf="1h", swing_n=5, min_swing=2.0, band_atr=0.5, entry_mode="marke
     highn = d.high_nlab.values
     N = len(d)
     pip = C.pip_size(sym)
-    cost_px = C.cost_pips(sym) * pip
 
     rows = []
     piv_i, piv_k, piv_p, piv_c = st["piv_i"], st["piv_k"], st["piv_p"], st["piv_c"]
@@ -240,7 +239,8 @@ def scan(sym, tf="1h", swing_n=5, min_swing=2.0, band_atr=0.5, entry_mode="marke
             else:
                 xi, xp, why = _simulate(o, h, l, c, j, entry, sl, tp, dr, sim_start)
             r_gross = (xp - entry) * dr / risk
-            cost_r = cost_px / risk
+            # equities pay a share of notional, FX a fixed spread — cost_px knows
+            cost_r = C.cost_px(sym, entry) / risk
 
             base_row.update(
                 stage=STAGE["entered"], entry_time=dates[j], entry_i=j, entry=entry,
@@ -268,8 +268,17 @@ def scan(sym, tf="1h", swing_n=5, min_swing=2.0, band_atr=0.5, entry_mode="marke
     return df
 
 
+def _safe(sym, **kw):
+    # a few names have no intraday file (IPO'd after the 730-day window, or the
+    # download dropped them); skipping beats aborting a 12-minute sweep
+    try:
+        return scan(sym, **kw)
+    except FileNotFoundError:
+        return pd.DataFrame()
+
+
 def scan_all(symbols=None, **kw):
-    out = [scan(s, **kw) for s in (symbols or C.SYMBOLS)]
+    out = [_safe(s, **kw) for s in (symbols or C.SYMBOLS)]
     out = [d for d in out if len(d)]
     return pd.concat(out, ignore_index=True) if out else pd.DataFrame()
 

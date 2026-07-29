@@ -11,7 +11,7 @@ import os, sys, time, json, warnings
 import pandas as pd
 import yfinance as yf
 
-from config import DATA, SYMBOLS, UNIVERSE
+import config as C
 
 warnings.filterwarnings("ignore")
 
@@ -55,7 +55,7 @@ def resample(d, rule):
 
 
 def _write(d, tf, sym):
-    out = os.path.join(DATA, tf)
+    out = os.path.join(C.DATA, tf)
     os.makedirs(out, exist_ok=True)
     d = d.reset_index()
     d.columns = ["date"] + list(d.columns[1:])
@@ -76,8 +76,8 @@ def update(sym):
     times an hour is out of the question. 1H needs a few days of overlap (Yahoo
     revises the most recent bars); daily needs a month.
     """
-    p1 = os.path.join(DATA, "1h", sym.replace("=", "_") + ".csv")
-    pd_ = os.path.join(DATA, "1d", sym.replace("=", "_") + ".csv")
+    p1 = os.path.join(C.DATA, "1h", sym.replace("=", "_") + ".csv")
+    pd_ = os.path.join(C.DATA, "1d", sym.replace("=", "_") + ".csv")
     if not (os.path.exists(p1) and os.path.exists(pd_)):
         return None
 
@@ -106,19 +106,19 @@ def update(sym):
 
 def _cached(sym):
     """All five frames already on disk? Lets a universe expansion be incremental."""
-    return all(os.path.exists(os.path.join(DATA, tf, sym.replace("=", "_") + ".csv"))
+    return all(os.path.exists(os.path.join(C.DATA, tf, sym.replace("=", "_") + ".csv"))
                for tf in ("1h", "4h", "1d", "1w", "1mo"))
 
 
 def main():
-    os.makedirs(DATA, exist_ok=True)
+    os.makedirs(C.DATA, exist_ok=True)
     force = "--force" in sys.argv
-    mpath = os.path.join(DATA, "meta.json")
+    mpath = os.path.join(C.DATA, "meta.json")
     meta = json.load(open(mpath)) if os.path.exists(mpath) and not force else {}
 
     if "--update" in sys.argv:                 # incremental path, used by watch.py
         ok = 0
-        for sym in SYMBOLS:
+        for sym in C.SYMBOLS:
             u = update(sym)
             if u and sym in meta:
                 meta[sym].update(u)
@@ -126,16 +126,16 @@ def main():
             time.sleep(0.15)
         json.dump(meta, open(mpath, "w"), indent=1)
         newest = max((m.get("end", "") for m in meta.values()), default="?")
-        print(f"updated {ok}/{len(SYMBOLS)} pairs, newest 1h bar {newest[:16]}")
+        print(f"updated {ok}/{len(C.SYMBOLS)} pairs, newest 1h bar {newest[:16]}")
         return 0 if ok else 1
 
     ok, bad, skipped = 0, [], 0
-    for i, sym in enumerate(SYMBOLS, 1):
+    for i, sym in enumerate(C.SYMBOLS, 1):
         if not force and sym in meta and _cached(sym):
             skipped += 1
             ok += 1
             continue
-        print(f"[{i:2d}/{len(SYMBOLS)}] {UNIVERSE[sym]:9s} ", end="", flush=True)
+        print(f"[{i:2d}/{len(C.SYMBOLS)}] {C.UNIVERSE[sym]:9s} ", end="", flush=True)
         raw = _download(sym, "1h", "730d")
         rawd = _download(sym, "1d", "max")
         if raw is None or len(raw) < 2000 or rawd is None or len(rawd) < 1000:
@@ -150,7 +150,7 @@ def main():
              # that bar is a stub, and folding it into Monday keeps the count honest
              "1w": _write(resample(d1, "W-MON"), "1w", sym),
              "1mo": _write(resample(d1, "MS"), "1mo", sym)}
-        meta[sym] = {"name": UNIVERSE[sym], "bars": n,
+        meta[sym] = {"name": C.UNIVERSE[sym], "bars": n,
                      "start": str(h1.index[0]), "end": str(h1.index[-1]),
                      "d_start": str(d1.index[0]), "d_end": str(d1.index[-1])}
         ok += 1
@@ -158,11 +158,11 @@ def main():
               f"1mo={n['1mo']:3d}   daily from {d1.index[0].date()}")
         time.sleep(0.4)
 
-    meta = {s: meta[s] for s in SYMBOLS if s in meta}     # drop pairs no longer listed
+    meta = {s: meta[s] for s in C.SYMBOLS if s in meta}     # drop pairs no longer listed
     json.dump(meta, open(mpath, "w"), indent=1)
     tot = {tf: sum(m["bars"][tf] for m in meta.values())
            for tf in ("1h", "4h", "1d", "1w", "1mo")}
-    print(f"\n{ok}/{len(SYMBOLS)} pairs cached ({skipped} already present) into {DATA}")
+    print(f"\n{ok}/{len(C.SYMBOLS)} pairs cached ({skipped} already present) into {C.DATA}")
     print("  total bars: " + "  ".join(f"{k}={v:,}" for k, v in tot.items()))
     if bad:
         print("missing:", ", ".join(bad))
@@ -170,4 +170,6 @@ def main():
 
 
 if __name__ == "__main__":
+    _a = sys.argv[1:]
+    C.set_market(_a[_a.index("--market") + 1] if "--market" in _a else "fx")
     sys.exit(main())

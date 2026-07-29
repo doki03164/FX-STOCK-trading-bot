@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 import config as C
+import markets as M
 import gates
 import backtest as B
 from sweep import _mask, split_at
@@ -332,8 +333,8 @@ def e1_cliff(cand, cfg):
 
 
 def main():
-    sw = pd.read_csv(os.path.join(HERE, "sweep.csv"))
-    cand = pd.read_parquet(os.path.join(HERE, "candidates.parquet"))
+    sw = pd.read_csv(C.art("sweep","csv"))
+    cand = pd.read_parquet(C.art("candidates","parquet"))
 
     ref = run_config(cand, REFERENCE, "Reference (sweep plateau)")
     man = run_config(cand, MANUAL, "Manual §07 as written")
@@ -377,6 +378,7 @@ def main():
 
     data = {
         "generated": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
+        "market": C.MARKET, "market_name": M.MARKETS[C.MARKET]["name"],
         "window": {"start": any_m["start"][:10], "end": any_m["end"][:10],
                    "d_start": any_m["d_start"][:10], "split": ref["split"]},
         "bars": bars_total,
@@ -398,24 +400,24 @@ def main():
             "exit_equity", "exit_why"]].to_json(orient="records")),
     }
 
-    plan = os.path.join(HERE, "plan.json")
+    plan = C.art("plan","json")
     if os.path.exists(plan):
         data["plan"] = json.load(open(plan, encoding="utf-8"))
 
     # watch.py's transition log — the newest 60 are enough to see the last few days
-    evp = os.path.join(HERE, "events.jsonl")
+    evp = C.art("events","jsonl")
     if os.path.exists(evp):
         rows = [json.loads(x) for x in open(evp, encoding="utf-8") if x.strip()]
         data["events"] = rows[-60:][::-1]
 
-    out = os.path.join(HERE, "dashboard_data.json")
+    out = C.art("dashboard_data","json")
     json.dump(data, open(out, "w", encoding="utf-8"), allow_nan=False)
     print(f"wrote {out}  ({os.path.getsize(out)/1024:.0f} KB)")
 
     tpl = open(os.path.join(HERE, "template.html"), encoding="utf-8").read()
     blob = json.dumps(data, allow_nan=False).replace("</script", "<\\/script")
     html = tpl.replace("/*__DATA__*/", blob)
-    path = os.path.join(HERE, "dashboard.html")
+    path = C.art("dashboard","html")
     open(path, "w", encoding="utf-8").write(html)
     print(f"wrote {path}  ({os.path.getsize(path)/1024:.0f} KB)")
 
@@ -437,4 +439,6 @@ def main():
 
 
 if __name__ == "__main__":
+    _a = sys.argv[1:]
+    C.set_market(_a[_a.index("--market") + 1] if "--market" in _a else "fx")
     sys.exit(main())

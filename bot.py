@@ -188,6 +188,8 @@ def main():
         print("refreshing bars...")
         subprocess.run([sys.executable, os.path.join(C.HERE, "fetch.py")], check=False)
 
+    C.set_market(sys.argv[sys.argv.index("--market") + 1]
+                 if "--market" in sys.argv else "fx")
     equity = C.ACCOUNT["capital"]
     stp = os.path.join(C.HERE, "state.json")
     if os.path.exists(stp):
@@ -238,7 +240,7 @@ def main():
            "equity": equity, "scanned": len(C.SYMBOLS) * len(tfs),
            "tfs": tfs, "params": {t: LADDERS[t] for t in tfs}, "plans": plans,
            "account": C.ACCOUNT}
-    path = os.path.join(C.HERE, "plan.json")
+    path = C.art("plan","json")
     json.dump(out, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"\nwrote {path}")
     print("提醒：本程式只產生訂單參數，不會下單。GATE 7 的執行由你完成。")

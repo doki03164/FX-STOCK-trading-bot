@@ -1,15 +1,15 @@
 # ---------------------------------------------------------------- generated data
-# All of this is reproducible with `python fetch.py` + `python sweep.py`, and it is
-# ~170 MB, so it stays out of the repo. start.bat rebuilds whatever is missing.
+# Reproducible with fetch/sweep and ~1 GB in total, so it stays out of the repo.
+# start.py rebuilds whatever is missing on first launch.
 data/
-sweep.csv
-candidates.parquet
-dashboard.html
-dashboard_data.json
-plan.json
-events.jsonl
-state.json
-sweep_log.txt
+sweep*.csv
+candidates*.parquet
+dashboard*.html
+dashboard_data*.json
+plan*.json
+events*.jsonl
+state*.json
+*_log.txt
 
 # ---------------------------------------------------------------- python
 __pycache__/

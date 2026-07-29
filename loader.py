@@ -16,8 +16,9 @@ import config as C
 import structure as S
 
 
-@functools.lru_cache(maxsize=256)
-def bars(sym, tf="1h"):
+@functools.lru_cache(maxsize=512)
+def bars(sym, tf="1h", _market=None):
+    # _market is unused inside but keeps the cache keyed per market
     p = os.path.join(C.DATA, tf, sym.replace("=", "_") + ".csv")
     d = pd.read_csv(p, parse_dates=["date"])
     d["date"] = pd.to_datetime(d.date, utc=True)
@@ -31,15 +32,15 @@ def _bar_end(dates):
     return nxt.fillna(dates.iloc[-1] + (span if pd.notna(span) else pd.Timedelta("1D")))
 
 
-@functools.lru_cache(maxsize=128)
-def frame(sym, tf="1h", swing_n=5, min_swing=2.0, swing_n_htf=3):
+@functools.lru_cache(maxsize=256)
+def frame(sym, tf="1h", swing_n=5, min_swing=2.0, swing_n_htf=3, _market=None):
     """Everything the gates need for one pair on one execution timeframe.
 
     Context timeframes use a smaller fractal (`swing_n_htf`) because they carry an
     order of magnitude fewer bars — a 5-bar fractal on the monthly would confirm a
     swing most of a year late.
     """
-    ex = bars(sym, tf).copy()
+    ex = bars(sym, tf, C.MARKET).copy()
     st = S.build(ex, swing_n, min_swing)
 
     h, l, c = ex.high.values, ex.low.values, ex.close.values
@@ -50,7 +51,7 @@ def frame(sym, tf="1h", swing_n=5, min_swing=2.0, swing_n_htf=3):
     left = ex[["date"]].copy()
     ctx = {}
     for tag, ctf in (("mid", C.TF_STACK[tf]["mid"]), ("high", C.TF_STACK[tf]["high"])):
-        hd = bars(sym, ctf)
+        hd = bars(sym, ctf, C.MARKET)
         hst = S.build(hd, swing_n_htf, min_swing)
         hi = pd.DataFrame({"key": _bar_end(hd.date),
                            "trend": hst["trend"], "nlab": hst["nlab"]}).sort_values("key")
