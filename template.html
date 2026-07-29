@@ -1,0 +1,1160 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FX Bot — 交易操作手冊 策略回測儀表板</title>
+<style>
+:root{
+  --bg:#0e1116;--panel:#161b23;--panel2:#1c232d;--line:#2a333f;
+  --tx:#e6edf3;--tx2:#a6b3c2;--tx3:#7d8b9b;
+  --pos:#3987e5;--neg:#d03b3b;--acc:#f0b429;--good:#0ca30c;--warn:#fab219;
+  --mid:#2a333f;
+  --mono:ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font-family:system-ui,-apple-system,"Segoe UI","PingFang TC","Noto Sans TC",sans-serif;
+  font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px 90px}
+a{color:var(--pos)}
+
+header{padding:52px 0 26px;border-bottom:1px solid var(--line);margin-bottom:26px}
+.kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--acc)}
+h1{font-size:clamp(26px,4vw,38px);margin:12px 0 8px;letter-spacing:-.01em}
+.sub{color:var(--tx2);max-width:720px;margin:0}
+.meta{font-family:var(--mono);font-size:12px;color:var(--tx3);margin-top:14px}
+
+h2{font-size:20px;margin:46px 0 4px;padding-top:22px;border-top:1px solid var(--line)}
+h2 .n{font-family:var(--mono);color:var(--acc);font-size:14px;margin-right:10px}
+h3{font-size:15px;margin:26px 0 8px;color:var(--tx2)}
+p{color:var(--tx2);margin:0 0 14px}
+.lead{border-left:3px solid var(--acc);padding-left:16px;margin:14px 0 22px;color:var(--tx2)}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:16px 0}
+.card.warn{border-left:3px solid var(--acc)}
+.card.bad{border-left:3px solid var(--neg)}
+.card .t{font-weight:600;color:var(--tx);margin-bottom:6px}
+.card p:last-child{margin-bottom:0}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin:18px 0}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+.kpi .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--tx3)}
+.kpi .v{font-size:23px;font-weight:600;margin-top:3px;letter-spacing:-.02em}
+.kpi .s{font-size:12px;color:var(--tx3);font-family:var(--mono)}
+.up{color:var(--pos)}.dn{color:var(--neg)}.mut{color:var(--tx3)}
+
+.ctrls{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:14px 0 6px}
+.ctrl{display:flex;flex-direction:column;gap:4px}
+.ctrl label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3)}
+select,input[type=range]{background:var(--panel2);color:var(--tx);border:1px solid var(--line);
+  border-radius:6px;padding:6px 9px;font:inherit;font-size:13px;min-width:112px}
+button.tv{background:var(--panel2);color:var(--tx2);border:1px solid var(--line);border-radius:6px;
+  padding:6px 11px;font:inherit;font-size:12px;cursor:pointer}
+button.tv:hover{color:var(--tx);border-color:var(--tx3)}
+
+figure{margin:14px 0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+figure svg{display:block;width:100%;height:auto;overflow:visible}
+figcaption{font-size:12.5px;color:var(--tx3);margin-top:10px}
+.scroll{overflow-x:auto}
+
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;padding:7px 10px;background:var(--panel2);color:var(--tx3);font-weight:600;
+  font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;border-bottom:1px solid var(--line);
+  position:sticky;top:0}
+td{padding:6px 10px;border-bottom:1px solid var(--line);color:var(--tx2);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody tr:hover td{background:var(--panel2)}
+
+.legend{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--tx3);
+  font-family:var(--mono);margin-top:10px;flex-wrap:wrap}
+.ramp{height:9px;width:170px;border-radius:5px}
+
+.tip{position:fixed;pointer-events:none;background:#0a0d12;border:1px solid var(--line);
+  border-radius:7px;padding:7px 10px;font-size:12px;color:var(--tx);z-index:50;
+  font-family:var(--mono);line-height:1.5;opacity:0;transition:opacity .08s;max-width:260px}
+.tip b{color:var(--acc);font-weight:600}
+
+.bars .row{display:grid;grid-template-columns:210px 1fr 62px;gap:10px;align-items:center;margin-bottom:5px}
+.bars .nm{font-size:12.5px;color:var(--tx2)}
+.bars .tr{background:var(--panel2);border-radius:4px;height:17px;overflow:hidden}
+.bars .fl{height:100%;border-radius:4px}
+.bars .ct{font-family:var(--mono);font-size:12px;color:var(--tx3);text-align:right}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+#freqgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:14px}
+#freqgrid figure{margin:0}
+@media(max-width:760px){.two{grid-template-columns:1fr}.bars .row{grid-template-columns:130px 1fr 50px}}
+.hidden{display:none}
+
+/* ---- sticky control bar (only active when served by app.py) ---- */
+.bar{position:sticky;top:0;z-index:40;background:rgba(14,17,22,.94);
+  backdrop-filter:blur(9px);border-bottom:1px solid var(--line);
+  margin:0 -22px 0;padding:9px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.bar .dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
+.bar .dot.busy{background:var(--acc);animation:pulse 1s infinite}
+.bar .dot.stale{background:var(--neg)}
+@keyframes pulse{50%{opacity:.25}}
+.bar .txt{font-family:var(--mono);font-size:12px;color:var(--tx3)}
+.bar .txt b{color:var(--tx2);font-weight:600}
+.bar .sp{margin-left:auto}
+.btn{background:var(--acc);color:#14100a;border:none;border-radius:7px;
+  padding:7px 15px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:default;filter:none}
+.btn.ghost{background:var(--panel2);color:var(--tx2);border:1px solid var(--line)}
+.bar .chk{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--tx3)}
+
+.tabs{display:flex;gap:6px;margin:0 0 24px;border-bottom:1px solid var(--line)}
+.tb{background:none;border:none;border-bottom:2px solid transparent;color:var(--tx3);
+  font:inherit;font-size:15px;font-weight:600;padding:11px 18px;cursor:pointer;margin-bottom:-1px}
+.tb:hover{color:var(--tx2)}
+.tb.on{color:var(--acc);border-bottom-color:var(--acc)}
+
+/* ---- live signal cards ---- */
+.sig{background:var(--panel);border:1px solid var(--line);border-left-width:3px;
+  border-radius:12px;padding:16px 18px;margin-bottom:12px}
+.sig.ready{border-left-color:var(--good)}
+.sig.armed{border-left-color:var(--acc)}
+.sig.blocked{border-left-color:var(--line)}
+.sig.invalid{border-left-color:var(--neg)}
+.sig .hd{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-bottom:12px}
+.sig .pair{font-size:17px;font-weight:600;color:var(--tx)}
+.sig .tag{font-family:var(--mono);font-size:11px;border:1px solid var(--line);
+  border-radius:5px;padding:2px 8px;color:var(--tx3)}
+.sig .st{font-size:12.5px;font-weight:600;margin-left:auto}
+.sig .px{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:9px;margin-bottom:12px}
+.sig .px div{background:var(--panel2);border-radius:7px;padding:8px 11px}
+.sig .px .l{font-family:var(--mono);font-size:10px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--tx3)}
+.sig .px .v{font-family:var(--mono);font-size:15px;color:var(--tx);margin-top:2px}
+.sig .when{font-size:13.5px;color:var(--tx2);line-height:1.75}
+.sig .when b{color:var(--tx)}
+.sig .when .lb{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--tx3);display:block;margin:9px 0 2px}
+.sig .fail{margin-top:10px;font-size:12.5px;color:var(--tx3)}
+.sig .fail b{color:var(--neg)}
+.dist{height:5px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:7px}
+.dist i{display:block;height:100%;background:var(--acc);border-radius:3px}
+
+.feed{max-height:270px;overflow-y:auto}
+.feed .ev{display:grid;grid-template-columns:132px 128px 1fr;gap:11px;align-items:baseline;
+  padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.feed .ev:last-child{border-bottom:none}
+.feed .ts{font-family:var(--mono);font-size:11.5px;color:var(--tx3)}
+.feed .kd{font-size:12.5px;font-weight:600}
+.feed .dt{color:var(--tx2);font-family:var(--mono);font-size:12px}
+.feed .dt b{color:var(--tx);font-family:inherit}
+.disc{margin-top:56px;padding:20px;border:1px solid var(--line);border-radius:12px;
+  background:var(--panel);font-size:13px;color:var(--tx3)}
+.disc .t{color:var(--tx2);font-weight:600;margin-bottom:8px}
+</style>
+
+<div class="wrap">
+<div class="bar hidden" id="bar">
+  <span class="dot" id="bar_dot"></span>
+  <span class="txt" id="bar_txt">—</span>
+  <span class="sp"></span>
+  <label class="chk"><input type="checkbox" id="bar_auto" checked> 自動更新</label>
+  <button class="btn ghost" id="bar_log" title="顯示最近的執行紀錄">紀錄</button>
+  <button class="btn" id="bar_scan">重新掃描</button>
+</div>
+<pre class="hidden" id="bar_logbox" style="background:var(--panel);border:1px solid var(--line);
+  border-radius:9px;padding:12px 14px;font-size:11.5px;color:var(--tx3);overflow-x:auto;
+  margin:10px 0 0"></pre>
+<header>
+  <div class="kicker">Algorithmic Trading Research · Forex</div>
+  <h1>交易操作手冊 — 策略回測儀表板</h1>
+  <p class="sub" id="sub"></p>
+  <div class="meta" id="meta"></div>
+</header>
+
+
+<nav class="tabs">
+  <button class="tb on" data-tab="live">即時訊號</button>
+  <button class="tb" data-tab="research">回測研究</button>
+</nav>
+
+<section id="tab-live">
+  <div id="live_head"></div>
+  <div id="live_feed"></div>
+  <div class="ctrls" id="live_ctrl"></div>
+  <div id="live_list"></div>
+  <div id="live_note"></div>
+</section>
+
+<section id="tab-research" class="hidden">
+
+<div id="verdict"></div>
+
+<h2><span class="n">01</span>三種執行週期的比較</h2>
+<p class="lead" id="tfline"></p>
+<figure class="scroll"><table id="tftable"></table>
+  <figcaption>同一套規則，把「日線看方向 / 4H 看空間 / 1H 執行」這個階梯整個往上搬。
+    右側「全網格」為該週期所有樣本數足夠的回測組合、依交易筆數加權的平均。</figcaption>
+</figure>
+<figure>
+  <div id="tfret"></div>
+  <figcaption id="tfretcap"></figcaption>
+</figure>
+
+<h2><span class="n">02</span>各週期獨立調參後的績效</h2>
+<p class="lead" id="ladline"></p>
+<figure class="scroll"><table id="ladtable"></table>
+  <figcaption id="ladcap"></figcaption>
+</figure>
+<figure>
+  <div id="ladeq"></div>
+  <figcaption id="ladeqcap"></figcaption>
+</figure>
+
+<h3>參考設定（1 小時階梯）的完整紀錄</h3>
+<p class="lead" id="refline"></p>
+<div class="kpis" id="kpis"></div>
+<figure>
+  <div id="equity"></div>
+  <figcaption>帳戶淨值（起始 $100,000，單筆風險 1%）。虛線為樣本內／樣本外分界；
+    下方紅色為回撤。<span id="eqcap"></span></figcaption>
+</figure>
+
+<h2><span class="n">03</span>參數掃描熱圖</h2>
+<p class="lead" id="sweepline"></p>
+<div class="ctrls" id="hmctrl"></div>
+<figure>
+  <div id="heat"></div>
+  <div class="legend">
+    <span>負</span><div class="ramp" id="ramp"></div><span>正</span>
+    <span id="ramplab" style="margin-left:6px"></span>
+    <button class="tv" onclick="toggleTable('heat')">表格檢視</button>
+  </div>
+  <div id="heat_table" class="hidden scroll" style="margin-top:12px"></div>
+  <figcaption>每格是符合該組合的所有回測run的成績（依交易筆數加權）。
+    格中數字為指標值，滑鼠移上可看筆數。</figcaption>
+</figure>
+
+<h2><span class="n">04</span>各週期的交易頻率</h2>
+<p class="lead" id="freqline"></p>
+<div class="ctrls" id="fqctrl"></div>
+<div id="freqgrid"></div>
+<div class="legend"><span>少</span><div class="ramp" id="ramp5"></div><span>多</span>
+  <span id="freqlab" class="mut"></span>
+  <button class="tv" onclick="toggleTable('freq')">表格檢視</button></div>
+<div id="freq_table" class="hidden scroll" style="margin-top:12px"></div>
+
+<h2><span class="n">05</span>樣本外檢驗</h2>
+<p class="lead" id="robline"></p>
+<div class="two">
+  <figure><div id="scatter"></div>
+    <figcaption>每點是一個回測組合：橫軸為樣本內期望值，縱軸為樣本外。
+      若參數選擇有效，點應沿對角線分布。</figcaption></figure>
+  <figure><div id="robstats"></div>
+    <figcaption>以樣本內成績挑出的前 25 名，在樣本外的實際表現。</figcaption></figure>
+</div>
+
+<h2><span class="n">06</span>GATE 漏斗 — 系統拒絕了多少交易</h2>
+<p class="lead">手冊說「這套系統的價值在於它拒絕了多少交易」。以下是每一關實際刷掉的數量。</p>
+<div class="two">
+  <figure><div id="funnel" class="bars"></div>
+    <figcaption>參考設定下，從結構計畫到最終進場的逐關存活數。</figcaption></figure>
+  <figure><div id="funnel2" class="bars"></div>
+    <figcaption>手冊原始門檻（RR≥2 且 SL≥2×ATR 且 4H+日線對齊）下的同一組漏斗。</figcaption></figure>
+</div>
+<div id="rejects"></div>
+
+<h2><span class="n">07</span>月報酬與貨幣對熱圖</h2>
+<figure>
+  <div id="monthly"></div>
+  <div class="legend"><span>負</span><div class="ramp" id="ramp2"></div><span>正</span>
+    <button class="tv" onclick="toggleTable('monthly')">表格檢視</button></div>
+  <div id="monthly_table" class="hidden scroll" style="margin-top:12px"></div>
+  <figcaption>參考設定帳戶的日曆月報酬率。</figcaption>
+</figure>
+<figure>
+  <div id="bypair"></div>
+  <div class="legend"><span>負</span><div class="ramp" id="ramp4"></div><span>正</span>
+    <span class="mut">單位：R</span>
+    <button class="tv" onclick="toggleTable('bypair')">表格檢視</button></div>
+  <div id="bypair_table" class="hidden scroll" style="margin-top:12px"></div>
+  <figcaption>各貨幣對的多／空平均 R。</figcaption>
+</figure>
+
+<h2><span class="n">08</span>交易明細</h2>
+<figure class="scroll" style="max-height:560px;overflow-y:auto">
+  <table id="trades"></table>
+</figure>
+
+</section>
+
+<div class="disc">
+  <div class="t">說明</div>
+  <p style="margin:0">本頁為 <code>交易操作手冊.html</code> 策略的程式化回測結果，供研究與紀律練習使用。
+     資料來源為 Yahoo Finance 的 1 小時外匯報價（指示性中間價，非真實可成交報價），
+     成本模型已計入點差、佣金與滑價。回測不含真實掛單排隊、部分成交與展期利息。</p>
+  <div class="t" style="margin-top:16px">風險聲明</div>
+  <p style="margin:0">本文僅供教育用途，不構成投資建議、財務建議或交易推薦。交易涉及重大風險，
+     可能導致本金全部損失。過往績效不代表未來結果。本回測結果不保證未來可複製，
+     且樣本外檢驗顯示參數選擇無法穩定外推。請只使用你能承受損失的資金，
+     並在必要時諮詢持牌財務顧問。</p>
+</div>
+</div>
+
+<div class="tip" id="tip"></div>
+<script type="application/json" id="D">/*__DATA__*/</script>
+<script>
+const D = JSON.parse(document.getElementById('D').textContent);
+const $ = s => document.querySelector(s);
+const el = (t, c) => { const e = document.createElement(t); if (c) e.className = c; return e; };
+const fmt = (v, d = 2) => v === null || v === undefined || !isFinite(v) ? '–' : v.toFixed(d);
+const pct = (v, d = 1) => v === null || !isFinite(v) ? '–' : (v * 100).toFixed(d) + '%';
+const sgn = v => (parseFloat(v) > 0 ? '+' : '') + v;   // works on "50.3%" too
+
+/* ---------- colour: OKLab-interpolated diverging ramp, blue(+) / red(-).
+   Validated for CVD separation (ΔE 19.2 protan) — a teal/red pair, though more
+   conventional in trading, measures 6.5 and would need texture to be legible. */
+const srgb2lin = c => c <= .04045 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4);
+const lin2srgb = c => c <= .0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - .055;
+function hex2ok(h) {
+  const r = srgb2lin(parseInt(h.slice(1, 3), 16) / 255),
+        g = srgb2lin(parseInt(h.slice(3, 5), 16) / 255),
+        b = srgb2lin(parseInt(h.slice(5, 7), 16) / 255);
+  const l = Math.cbrt(.4122214708 * r + .5363325363 * g + .0514459929 * b),
+        m = Math.cbrt(.2119034982 * r + .6806995451 * g + .1073969566 * b),
+        s = Math.cbrt(.0883024619 * r + .2817188376 * g + .6299787005 * b);
+  return [.2104542553 * l + .793617785 * m - .0040720468 * s,
+          1.9779984951 * l - 2.428592205 * m + .4505937099 * s,
+          .0259040371 * l + .7827717662 * m - .808675766 * s];
+}
+function ok2hex(L, A, B) {
+  const l = (L + .3963377774 * A + .2158037573 * B) ** 3,
+        m = (L - .1055613458 * A - .0638541728 * B) ** 3,
+        s = (L - .0894841775 * A - 1.291485548 * B) ** 3;
+  const v = [lin2srgb(4.0767416621 * l - 3.3077115913 * m + .2309699292 * s),
+             lin2srgb(-1.2684380046 * l + 2.6097574011 * m - .3413193965 * s),
+             lin2srgb(-.0041960863 * l - .7034186147 * m + 1.707614701 * s)];
+  return '#' + v.map(x => Math.round(Math.max(0, Math.min(1, x)) * 255)
+    .toString(16).padStart(2, '0')).join('');
+}
+const OK = h => hex2ok(h);
+const ARM_POS = ['#2a333f', '#2a78d6', '#9ec5f4'].map(OK);
+const ARM_NEG = ['#2a333f', '#d03b3b', '#f0a8a8'].map(OK);
+function ramp(arm, t) {                    // t in 0..1 along a 3-stop arm
+  const u = Math.max(0, Math.min(1, t)) * 2, i = Math.min(1, Math.floor(u)), f = u - i;
+  const a = arm[i], b = arm[i + 1];
+  return ok2hex(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f);
+}
+const divColor = (v, max) => v === null || v === undefined || !isFinite(v) ? 'transparent'
+  : ramp(v >= 0 ? ARM_POS : ARM_NEG, Math.pow(Math.abs(v) / (max || 1), .75));
+// sequential: one hue, near-surface -> bright. For magnitudes with no sign, like
+// trade frequency, where a diverging scale would invent a meaningless midpoint.
+const seqColor = (v, max) => v === null || v === undefined || !isFinite(v) ? 'transparent'
+  : ramp(ARM_POS, Math.pow(Math.max(v, 0) / (max || 1), .6));
+const inkOn = (v, max, p) => Math.pow(Math.abs(v) / (max || 1), p || .75) > .55
+  ? '#0b0f14' : 'var(--tx2)';
+
+function paintRamp(id) {
+  const stops = [];
+  for (let i = 0; i <= 20; i++) { const t = i / 20 * 2 - 1; stops.push(divColor(t, 1)); }
+  $('#' + id).style.background = `linear-gradient(90deg,${stops.join(',')})`;
+}
+
+/* ---------- tooltip ---------- */
+const tip = $('#tip');
+function showTip(e, html) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - w - 8) + 'px';
+  tip.style.top = Math.max(8, e.clientY - h - 12) + 'px';
+}
+const hideTip = () => tip.style.opacity = 0;
+
+/* ---------- header ---------- */
+$('#sub').innerHTML = `把手冊的 GATE 1–7 與 18 項進場前提條件寫成程式，在
+  <b>${D.universe.length} 組外匯貨幣對</b>的 <b>1 小時、4 小時與日線</b>三種執行週期上重跑
+  （共 ${((D.bars['1h'] + D.bars['4h'] + D.bars['1d']) / 1e6).toFixed(2)}M 根 K 棒），
+  並用參數掃描檢驗每一個門檻值是否真的有效。`;
+$('#meta').textContent =
+  `${D.universe.length} 貨幣對  ·  1H / 4H / 日線 三種執行週期  ·  `
+  + `日線 ${D.window.d_start} 起，1H ${D.window.start} 起，皆至 ${D.window.end}  ·  `
+  + `${D.sweep_total.toLocaleString()} 次回測  ·  產生於 ${D.generated}`;
+
+/* ---------- verdict ---------- */
+{
+  const r = D.robustness, ref = D.reference, man = D.manual;
+  const T = D.tf_compare, byTf = Object.fromEntries(T.map(t => [t.tf, t]));
+  const c = el('div', 'card bad');
+  c.innerHTML = `<div class="t">結論先講</div>
+   <p><b>1 · E2 做得到，E1 做不到。</b>
+      把 HPCZ 半寬設成 ±1×ATR、停損放在整個區帶之外，停損距離自然就是約 2.2×ATR，
+      <b>E2（SL ≥ 2×ATR）幾乎不刷掉任何交易</b>。真正的懸崖是 E1：同一組設定下只調 RR 門檻，
+      ${D.e1_cliff.map(c => `RR≥${c.rr} <b>${c.trades}</b> 筆`).join('、')}。
+      手冊原文 18 項全開，只產生 ${man.stats.trades} 筆交易。</p>
+   <p><b>2 · 換到 4H 或日線不能解決，但日線比較可信。</b>
+      成本大幅下降（1H ${fmt(byTf['1h'].cost_r, 3)}R → 日線 ${fmt(byTf['1d'].cost_r, 3)}R），
+      但推動浪的 ATR 倍數幾乎不變（${fmt(byTf['1h'].leg_atr, 1)} /
+      ${fmt(byTf['4h'].leg_atr, 1)} / ${fmt(byTf['1d'].leg_atr, 1)}）——結構是碎形的，
+      幾何衝突跨週期存在。不過樣本內外的相關係數 1H ${fmt(r.by_tf['1h'], 2)} →
+      日線 <b>${fmt(r.by_tf['1d'], 2)}</b>，日線近 30 年的資料讓掃描結果不那麼像雜訊。</p>
+   <p style="margin-bottom:0"><b>3 · 有效的是 GATE 2／3／4／6，不是 E1 的數字。</b>
+      成熟度上限（推動浪 ≤ 2）、日線階段確認、共振數 ≥ 4、確認 K 棒，在多數設定下都提升期望值。
+      但 ${D.sweep_total.toLocaleString()} 次回測中只有 <b>${r.both_positive}</b> 組樣本內外都
+      > +0.05R；參考設定是那片高原的中心，期望值
+      ${sgn(fmt(D.reference.stats.expectancy_r, 3))}R，仍遠低於可以實盤的標準。</p>`;
+  $('#verdict').appendChild(c);
+}
+
+/* ---------- server-backed control bar ----------
+   Only wired up when app.py is serving the page; opened as a file:// there is no
+   backend to talk to, so the bar stays hidden rather than showing dead buttons. */
+const SERVED = location.protocol.startsWith('http');
+if (SERVED) {
+  $('#bar').classList.remove('hidden');
+  const dot = $('#bar_dot'), txt = $('#bar_txt'), btn = $('#bar_scan');
+  const planAge = () => D.plan
+    ? (Date.now() - Date.parse(D.plan.as_of.replace(' UTC', 'Z'))) / 36e5 : 999;
+  let wasBusy = false;
+
+  async function poll() {
+    try {
+      const s = await (await fetch('/api/status', { cache: 'no-store' })).json();
+      const age = planAge();
+      dot.className = 'dot' + (s.busy ? ' busy' : age > 6 ? ' stale' : '');
+      txt.innerHTML = s.busy
+        ? `<b>${s.step}…</b>`
+        : `資料 <b>${D.plan ? D.plan.as_of : '—'}</b>` +
+          (D.plan ? ` · ${age < 1 ? (age * 60).toFixed(0) + ' 分鐘前'
+                                  : age.toFixed(1) + ' 小時前'}` : '') +
+          ` · 可下單 <b>${D.plan ? D.plan.plans.filter(p => p.state === 'ready').length : 0}</b>`;
+      btn.disabled = s.busy;
+      btn.textContent = s.busy ? '掃描中…' : '重新掃描';
+      $('#bar_logbox').textContent = (s.log || []).join('\n');
+      // the scan rewrites this very page, so reload once it finishes
+      if (wasBusy && !s.busy && $('#bar_auto').checked) location.reload();
+      wasBusy = s.busy;
+    } catch (e) { txt.textContent = '無法連線到本機服務'; }
+  }
+  btn.addEventListener('click', async () => {
+    btn.disabled = true; btn.textContent = '掃描中…';
+    await fetch('/api/scan'); setTimeout(poll, 400);
+  });
+  $('#bar_log').addEventListener('click', () => $('#bar_logbox').classList.toggle('hidden'));
+  poll(); setInterval(poll, 2000);
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tb').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tb').forEach(x => x.classList.toggle('on', x === b));
+  ['live', 'research'].forEach(t =>
+    $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  scrollTo(0, 0);
+}));
+
+/* ---------- live signals ---------- */
+const STATE = {
+  ready: ['✓ 現在可下單', 'up'], armed: ['· 等待價格到區', ''],
+  blocked: ['× 條件未通過', 'mut'], invalid: ['× 區域已被跌破', 'dn'],
+};
+
+function liveCard(p) {
+  const [lab, cls] = STATE[p.state];
+  const dir = p.dr > 0 ? '多' : '空';
+  const tfn = (D.stack[p.tf] || [p.tf])[0];
+  const near = p.state === 'armed'
+    ? `<div class="dist"><i style="width:${Math.max(2, Math.min(100, 100 - p.gap_pct * 40))}%"></i></div>
+       <div class="mut" style="font-size:12px;margin-top:4px;font-family:var(--mono)">
+         距進場價 ${Math.abs(p.gap_pips)} pips（${p.gap_pct}%）· 設價格提醒於 ${p.entry}</div>` : '';
+  const px = [['進場', p.entry], ['停損 SL', p.sl], ['停利 TP', p.tp],
+              ['手數', p.lots], ['風險', '$' + Math.round(p.risk_usd).toLocaleString()],
+              ['RR', p.rr]];
+  return `<div class="sig ${p.state}">
+    <div class="hd">
+      <span class="pair">${p.name}</span>
+      <span class="${p.dr > 0 ? 'up' : 'dn'}" style="font-weight:600">${dir}</span>
+      <span class="tag">${tfn}</span>
+      <span class="tag">共振 ${p.n_conf}</span>
+      <span class="tag">SL ${p.sl_atr}×ATR</span>
+      <span class="st ${cls}">${lab}</span>
+    </div>
+    <div class="px">${px.map(([l, v]) =>
+      `<div><div class="l">${l}</div><div class="v">${v}</div></div>`).join('')}</div>
+    ${near}
+    <div class="when">
+      <span class="lb">何時進場</span>${p.entry_rule}
+      <span class="lb">何時出場（三選一，先到先算）</span>
+      1 · <b>停利</b> ${p.tp} → +${p.reward_pips} pips ≈ +$${Math.round(p.reward_usd).toLocaleString()}<br>
+      2 · <b>停損</b> ${p.sl} → −${p.risk_pips} pips ≈ −$${Math.round(p.risk_usd).toLocaleString()}<br>
+      3 · <b>結構失效</b>：${tfn} K 棒收線越過 ${p.invalidate} → 手動平倉，不要等它回來<br>
+      <span class="mut">未成交則 ${p.expires} 計畫到期作廢；已成交最長持有至 ${p.max_hold_until}。
+      下單時 SL 與 TP 必須同時掛上，然後關掉平台。</span>
+      <span class="lb">共振因素</span>${p.factors.join(' · ')}
+    </div>
+    ${p.failed.length ? `<div class="fail">未通過：<b>${p.failed.join('、')}</b></div>` : ''}
+  </div>`;
+}
+
+function renderLive() {
+  const P = D.plan;
+  if (!P) {
+    $('#live_head').innerHTML = `<div class="card warn"><div class="t">尚未產生即時訊號</div>
+      <p style="margin:0">執行 <code>python bot.py</code> 抓取最新報價並跑一次 GATE 1–7，
+      然後 <code>python report.py</code> 重建本頁。</p></div>`;
+    return;
+  }
+  const n = s => P.plans.filter(p => p.state === s).length;
+  const age = (Date.now() - Date.parse(P.as_of.replace(' UTC', 'Z'))) / 36e5;
+  const stale = age > 24;
+  $('#live_head').innerHTML = `
+    <div class="card ${stale ? 'bad' : n('ready') ? '' : 'warn'}">
+      <div class="t">${n('ready') ? `現在有 ${n('ready')} 筆可以下單`
+        : '目前沒有可立即執行的交易'}</div>
+      <p>資料時間 <b style="color:var(--tx)">${P.as_of}</b>
+        ${stale ? `<span class="dn">（已過 ${age.toFixed(0)} 小時，請重新執行 <code>python bot.py</code>）</span>`
+                : `<span class="mut">（${age.toFixed(1)} 小時前）</span>`} ·
+        掃描 ${P.scanned} 次（${D.universe.length} 組貨幣對 × ${P.tfs.length} 個週期） ·
+        帳戶 $${P.equity.toLocaleString()}，單筆風險 ${(P.account.risk_pct * 100).toFixed(0)}%</p>
+      <p style="margin-bottom:0">可下單 <b class="up">${n('ready')}</b> ·
+        等待價格到區 <b style="color:var(--acc)">${n('armed')}</b> ·
+        條件未通過 <b>${n('blocked')}</b> · 已失效 <b>${n('invalid')}</b>
+        ${n('ready') > P.account.max_trades_day
+          ? `<br><span style="color:var(--acc)">當日上限 ${P.account.max_trades_day} 筆，挑 RR 最高的執行。</span>` : ''}</p>
+    </div>`;
+
+  // watch.py's transition feed: what CHANGED, so a walk-away user can catch up
+  const EV = { ready: ['✓ 可下單', 'up'], armed: ['· 新計畫', ''],
+               invalid: ['× 區域被貫穿', 'dn'], lost: ['× 條件不再成立', 'mut'],
+               gone: ['× 計畫消失', 'mut'] };
+  if (D.events && D.events.length) {
+    $('#live_feed').innerHTML = `<div class="card">
+      <div class="t">狀態變化紀錄 <span class="mut" style="font-weight:400;font-size:13px">
+        · 最近 ${D.events.length} 筆，由 <code>watch.py</code> 每根 K 棒收線後寫入</span></div>
+      <div class="feed">${D.events.map(e => {
+        const [lab, cls] = EV[e.kind] || [e.kind, ''];
+        const tfn = (D.stack[e.tf] || [e.tf])[0];
+        return `<div class="ev"><span class="ts">${e.t.replace(' UTC', '')}</span>
+          <span class="kd ${cls}">${lab}</span>
+          <span class="dt"><b>${e.name}</b>
+            <span class="${e.dr > 0 ? 'up' : 'dn'}">${e.dr > 0 ? '多' : '空'}</span>
+            ${tfn} · 進場 ${e.entry} · SL ${e.sl} · TP ${e.tp} · RR ${e.rr}</span></div>`;
+      }).join('')}</div></div>`;
+  } else {
+    $('#live_feed').innerHTML = `<div class="card"><div class="t">尚未有狀態變化紀錄</div>
+      <p style="margin:0">執行 <code>python watch.py</code> 開始 24 小時監控。
+      每根 1H K 棒收線後會自動重掃，並把「新的可下單訊號 / 計畫失效」寫進
+      <code>events.jsonl</code>，顯示在這裡。</p></div>`;
+  }
+
+  const c = $('#live_ctrl');
+  if (!c.dataset.built) {
+    c.dataset.built = 1;
+    const opts = [['actionable', '可下單 + 等待中'], ['ready', '只看可下單'],
+                  ['armed', '只看等待中'], ['blocked', '只看未通過'], ['all', '全部']];
+    const tfo = [['*', '全部週期']].concat(P.tfs.map(t => [t, D.stack[t][0] + ' 執行']));
+    [['顯示', 'lv_f', opts, 'actionable'], ['週期', 'lv_tf', tfo, '*']].forEach(([l, id, o, v]) => {
+      const d = el('div', 'ctrl');
+      d.innerHTML = `<label for="${id}">${l}</label><select id="${id}">` +
+        o.map(([a, b]) => `<option value="${a}"${a === v ? ' selected' : ''}>${b}</option>`)
+          .join('') + '</select>';
+      c.appendChild(d);
+    });
+    c.addEventListener('change', renderLive);
+  }
+  const f = $('#lv_f') ? $('#lv_f').value : 'actionable';
+  const tf = $('#lv_tf') ? $('#lv_tf').value : '*';
+  let list = P.plans.filter(p => tf === '*' || p.tf === tf);
+  if (f === 'actionable') list = list.filter(p => p.state === 'ready' || p.state === 'armed');
+  else if (f !== 'all') list = list.filter(p => p.state === f);
+
+  $('#live_list').innerHTML = list.length ? list.map(liveCard).join('')
+    : '<div class="card"><p style="margin:0">這個條件下沒有標的。</p></div>';
+
+  $('#live_note').innerHTML = `<div class="card warn">
+    <div class="t">這個分頁不會下單</div>
+    <p>外匯零售端沒有可用的下單 API，所以本程式只算出訂單參數：進場價、SL、TP、手數。
+      實際送單、以及手冊 GATE 7 的「送出後立即核對方向／手數／SL／TP」，由你在券商平台完成。</p>
+    <p style="margin-bottom:0">手動更新一次：<code>python live.py</code>。
+      要 24 小時不間斷：<code>python watch.py</code> —— 它會在每根 1H K 棒收線後
+      （整點過 90 秒）自動重抓、重掃、重建本頁，並把狀態變化寫進上方的紀錄。
+      1 小時的計畫每小時變一次、4 小時每 4 小時、日線每天收盤後變一次，
+      <b>不需要盯盤</b>：掛單是靜置的，照手冊設好價格提醒即可。</p></div>`;
+}
+renderLive();
+
+/* ---------- timeframe ladder ---------- */
+function panelBars(node, rows, metrics) {
+  /* Small multiples: one panel per metric, each with its own scale and a zero
+     baseline. Bars are coloured by sign and every bar carries its value, so the
+     colour is never the only thing saying "this one lost money". */
+  const PW = 268, PH = 176, PLOT = 96, TOP = 34, W = metrics.length * PW, GAP = 14;
+  let s = `<svg viewBox="0 0 ${W} ${PH}" role="img" aria-label="各週期收益比較">`;
+  metrics.forEach((m, mi) => {
+    const x0 = mi * PW;
+    const vals = rows.map(r => r[m.k] ?? 0);
+    const max = Math.max(...vals.map(Math.abs), 1e-9);
+    const hasNeg = vals.some(v => v < 0);
+    const zero = TOP + (hasNeg ? PLOT / 2 : PLOT);
+    const scale = v => (v / max) * (hasNeg ? PLOT / 2 : PLOT);
+    s += `<text x="${x0 + 14}" y="18" fill="#a6b3c2" font-size="12.5"
+       font-weight="600">${m.t}</text>
+      <line x1="${x0 + 14}" y1="${zero}" x2="${x0 + PW - GAP}" y2="${zero}"
+        stroke="#383835"/>`;
+    const BW = (PW - 28 - GAP) / rows.length;
+    rows.forEach((r, i) => {
+      const v = r[m.k] ?? 0, hgt = Math.abs(scale(v));
+      const bx = x0 + 18 + i * BW, by = v >= 0 ? zero - hgt : zero;
+      // 2px gap between adjacent bars so the fills never merge
+      s += `<rect x="${bx}" y="${by}" width="${BW - 12}" height="${Math.max(hgt, 2)}"
+         rx="4" fill="${divColor(v, max)}"/>
+        <text x="${bx + (BW - 12) / 2}" y="${v >= 0 ? by - 6 : by + hgt + 14}"
+          fill="#e6edf3" font-size="11.5" text-anchor="middle"
+          font-family="ui-monospace,monospace">${m.f(v)}</text>
+        <text x="${bx + (BW - 12) / 2}" y="${TOP + PLOT + 30}" fill="#898781"
+          font-size="11" text-anchor="middle">${r.label}</text>`;
+    });
+  });
+  node.innerHTML = s + '</svg>';
+}
+
+{
+  const T = D.tf_compare;
+  $('#tfline').innerHTML = `手冊把週期分工成「日線＝能不能做 / 4H＝有沒有空間 / 1H＝怎麼做」。
+    這是一個<b>階梯</b>，不是三張固定的圖——整個往上搬一格，同一套規則就變成 4H 執行
+    （日線看方向、週線看空間），再搬一格就是日線執行。資料量：1H
+    ${(D.bars['1h'] / 1000).toFixed(0)}k 根、4H ${(D.bars['4h'] / 1000).toFixed(0)}k 根、
+    日線 ${(D.bars['1d'] / 1000).toFixed(0)}k 根（日線回溯到 ${D.window.d_start}）。`;
+
+  const hd = ['執行 / 中 / 高', '資料期間', '交易', '每年', '期望值', '勝率',
+              '成本 (R)', '推動浪 (ATR)', '樣本內', '樣本外', '全網格 IS↔OOS'];
+  $('#tftable').innerHTML = '<thead><tr>' + hd.map(h => `<th>${h}</th>`).join('') +
+    '</tr></thead><tbody>' + T.map(t => `<tr>
+        <td style="color:var(--tx)">${t.label} / ${t.mid} / ${t.high}
+          ${t.tf === D.reference.params.tf ? '<span class="mut">· 參考</span>' : ''}</td>
+        <td class="mut">${t.span[0]} → ${t.span[1]}</td>
+        <td>${t.trades}</td><td>${fmt(t.tpy, 1)}</td>
+        <td class="${t.expectancy > 0 ? 'up' : 'dn'}">${sgn(fmt(t.expectancy, 3))}</td>
+        <td>${pct(t.win_rate)}</td>
+        <td>${fmt(t.cost_r, 3)}</td><td>${fmt(t.leg_atr, 1)}</td>
+        <td class="${t.is_exp > 0 ? 'up' : 'dn'}">${sgn(fmt(t.is_exp, 3))}</td>
+        <td class="${t.oos_exp > 0 ? 'up' : 'dn'}">${sgn(fmt(t.oos_exp, 3))}</td>
+        <td>${fmt(t.grid_corr, 2)}</td></tr>`).join('') + '</tbody>';
+
+  // 收益比較: four single-metric panels rather than one chart with four scales —
+  // a percentage, an R multiple and a drawdown do not share an axis
+  panelBars($('#tfret'), T, [
+    { k: 'cagr', t: '年化報酬 CAGR', f: v => pct(v, 1) },
+    { k: 'r_per_year', t: '年均 R', f: v => sgn(fmt(v, 1)) + 'R' },
+    { k: 'expectancy', t: '每筆期望值', f: v => sgn(fmt(v, 3)) + 'R' },
+    { k: 'max_dd', t: '最大回撤', f: v => pct(v, 1) },
+  ]);
+  $('#tfretcap').innerHTML = `同一組規則、同一個 $100,000 帳戶、單筆風險 1%，
+    只換執行週期。<b>總報酬不能直接比</b>——1H 只有
+    ${T.find(x => x.tf === '1h').years} 年資料，日線有
+    ${T.find(x => x.tf === '1d').years} 年——所以這裡用年化值。
+    ${T.map(t => `${t.label} 總報酬 ${pct(t.total_return, 1)}`).join(' · ')}。`;
+
+}
+
+/* ---------- per-ladder results + multi-curve equity ---------- */
+{
+  const L = D.ladders, K = D.common;
+  const PN = { entry_mode: '進場', sl_mode: '停損', min_swing: 'zigzag', band_atr: '區帶',
+               min_conf: '共振≥', min_rr: 'RR≥', sl_atr_mult: 'SL≥', max_legs: '推動浪≤',
+               mtf: '多週期' };
+  $('#ladline').innerHTML = `之前三個週期都套用同一組（為 1 小時調的）參數，難怪 4 小時看起來很爛。
+    這裡每個週期<b>各自從掃描結果裡挑自己的高原</b>——一樣的挑法：先要求樣本內外都為正，
+    再依<b>年均 R</b> 排序（高週期的問題是機會太少，不是每筆品質差）。
+    三組都保留 ±1×ATR 的區帶，所以停損距離自動落在 2.2×ATR，E2 依然成立。`;
+
+  const hd = ['週期', '參數', '交易', '每年', '期望值', '勝率', 'PF', '年均 R',
+              'CAGR', '最大回撤', '樣本內', '樣本外'];
+  $('#ladtable').innerHTML = '<thead><tr>' + hd.map(h => `<th>${h}</th>`).join('') +
+    '</tr></thead><tbody>' + L.map(t => {
+      const p = D.ladder_params[t.tf] || {};
+      const ps = ['entry_mode', 'min_conf', 'min_rr', 'sl_atr_mult', 'max_legs', 'mtf']
+        .map(k => `${PN[k]}${p[k]}`).join(' · ');
+      return `<tr>
+        <td style="color:var(--tx)">${t.label}</td>
+        <td class="mut" style="font-size:11.5px">${ps}</td>
+        <td>${t.trades}</td><td>${t.tpy}</td>
+        <td class="${t.expectancy > 0 ? 'up' : 'dn'}">${sgn(fmt(t.expectancy, 3))}</td>
+        <td>${pct(t.win_rate)}</td><td>${fmt(t.profit_factor)}</td>
+        <td class="${t.r_per_year > 0 ? 'up' : 'dn'}">${sgn(fmt(t.r_per_year, 1))}</td>
+        <td class="${t.cagr > 0 ? 'up' : 'dn'}">${pct(t.cagr)}</td>
+        <td class="dn">${pct(t.max_dd)}</td>
+        <td class="${t.is_exp > 0 ? 'up' : 'dn'}">${sgn(fmt(t.is_exp, 3))}</td>
+        <td class="${t.oos_exp > 0 ? 'up' : 'dn'}">${sgn(fmt(t.oos_exp, 3))}</td></tr>`;
+    }).join('') + '</tbody>';
+  $('#ladcap').innerHTML = `每個週期用自己的全部歷史（日線 ${L[2].years} 年、
+    1 小時 ${L[0].years} 年），所以 CAGR 之間<b>不能直接比</b>——下圖才是可比的。`;
+
+  // four curves over the window all three ladders share, normalised to 100
+  const SER = [['1h', '#3987e5'], ['4h', '#d95926'], ['1d', '#199e70'], ['all', '#eda100']];
+  const W = 1100, H = 300, PL = 52, PR = 108, PT = 16, PB = 30;
+  const rows = SER.map(([tf, col]) => [K.find(k => k.tf === tf), col]).filter(r => r[0]);
+  const all = rows.flatMap(([k]) => k.curve.map(c => [Date.parse(c[0]), c[1]]));
+  const x0 = Math.min(...all.map(a => a[0])), x1 = Math.max(...all.map(a => a[0]));
+  const base = rows[0][0].curve[0][1];
+  const ys = all.map(a => a[1] / base * 100);
+  const y0 = Math.min(...ys, 98), y1 = Math.max(...ys) * 1.01;
+  const X = v => PL + (v - x0) / (x1 - x0) * (W - PL - PR);
+  const Y = v => PT + (1 - (v - y0) / (y1 - y0)) * (H - PT - PB);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="各週期淨值比較">`;
+  for (let i = 0; i <= 4; i++) {
+    const v = y0 + (y1 - y0) * i / 4;
+    s += `<line x1="${PL}" y1="${Y(v).toFixed(1)}" x2="${W - PR}" y2="${Y(v).toFixed(1)}"
+       stroke="#2c2c2a"/><text x="${PL - 8}" y="${(Y(v) + 4).toFixed(1)}" fill="#898781"
+       font-size="11" text-anchor="end" font-family="ui-monospace,monospace">${v.toFixed(0)}</text>`;
+  }
+  rows.forEach(([k, col]) => {
+    const d = k.curve.map((c, i) => (i ? 'L' : 'M') +
+      X(Date.parse(c[0])).toFixed(1) + ' ' + Y(c[1] / base * 100).toFixed(1)).join('');
+    const last = k.curve[k.curve.length - 1];
+    s += `<path d="${d}" fill="none" stroke="${col}" stroke-width="2"
+       stroke-linejoin="round" opacity="${k.tf === 'all' ? 1 : .9}"/>
+      <text x="${W - PR + 8}" y="${(Y(last[1] / base * 100) + 4).toFixed(1)}" fill="${col}"
+        font-size="12" font-family="ui-monospace,monospace">${k.label} ${pct(k.cagr, 1)}</text>`;
+  });
+  s += `<text x="${PL}" y="${H - 6}" fill="#898781" font-size="11"
+      font-family="ui-monospace,monospace">${new Date(x0).toISOString().slice(0, 10)}</text>
+    <text x="${W - PR}" y="${H - 6}" fill="#898781" font-size="11" text-anchor="end"
+      font-family="ui-monospace,monospace">${new Date(x1).toISOString().slice(0, 10)}</text></svg>`;
+  $('#ladeq').innerHTML = s;
+
+  const cb = K.find(k => k.tf === 'all');
+  $('#ladeqcap').innerHTML = `共同期間 <b>${D.common_start}</b> 起（1 小時的資料只到這裡，
+    所以只有這段能公平比較），起始值都設為 100，單筆風險 1%，右側標註為年化報酬。
+    「三週期組合」是三個階梯<b>共用同一個帳戶</b>：相關性與同時持倉上限跨週期一起計算，
+    所以它不是三倍槓桿。組合的年均 R 最高（<b>${fmt(cb.r_per_year, 1)}R</b> vs 單跑 1 小時的
+    ${fmt(K.find(k => k.tf === '1h').r_per_year, 1)}R），但最大回撤也最大
+    （${pct(cb.max_dd)}）——因為 ${Object.values(cb.rejects || {}).reduce((a, b) => a + b, 0)}
+    筆被帳戶層規則擋掉，擋掉的多半是原本 1 小時能吃到的單。`;
+}
+
+/* ---------- KPIs ---------- */
+{
+  const s = D.reference.stats, p = D.reference.params;
+  $('#refline').innerHTML = `參考設定：<b>${D.stack[p.tf].join(' / ')}</b> 階梯 ·
+    <code>${p.entry_mode}</code> 進場 ·
+    停損放在 <code>${p.sl_mode}</code> · zigzag 門檻 ${p.min_swing}×ATR ·
+    區帶 ±${p.band_atr}×ATR · 共振 ≥${p.min_conf} · RR ≥${p.min_rr} ·
+    SL ≥${p.sl_atr_mult}×ATR · 推動浪 ≤${p.max_legs} · 多週期 ${p.mtf}`;
+  const K = [
+    ['交易筆數', s.trades, `${fmt(s.trades_per_week, 1)} 筆/週`],
+    ['期望值', sgn(fmt(s.expectancy_r, 3)) + 'R', `勝率 ${pct(s.win_rate)}`],
+    ['總報酬', sgn(pct(s.total_return)), `CAGR ${pct(s.cagr)}`],
+    ['最大回撤', pct(s.max_dd), `Calmar ${fmt(s.calmar)}`],
+    ['獲利因子', fmt(s.profit_factor), `Sharpe ${fmt(s.sharpe)}`],
+    ['樣本內', sgn(fmt(D.reference.is.expectancy, 3)) + 'R', `${D.reference.is.trades} 筆`],
+    ['樣本外', sgn(fmt(D.reference.oos.expectancy, 3)) + 'R', `${D.reference.oos.trades} 筆`],
+    ['平均盈虧', `${fmt(s.avg_win_r, 2)} / ${fmt(s.avg_loss_r, 2)}`, 'R 為單位'],
+  ];
+  const g = $('#kpis');
+  K.forEach(([l, v, sb]) => {
+    const d = el('div', 'kpi');
+    const num = typeof v === 'string' ? parseFloat(v) : v;
+    const cls = /^[+-]/.test(String(v)) ? (num > 0 ? 'up' : num < 0 ? 'dn' : '') : '';
+    d.innerHTML = `<div class="l">${l}</div><div class="v ${cls}">${v}</div><div class="s">${sb}</div>`;
+    g.appendChild(d);
+  });
+}
+
+/* ---------- equity curve ---------- */
+function drawEquity() {
+  const pts = D.reference.curve.map(([t, v]) => [new Date(t + 'Z').getTime(), v]);
+  if (pts.length < 2) return;
+  const W = 1100, H = 300, PL = 62, PR = 14, PT = 14, PB = 26, EH = 210;
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y0 = Math.min(...ys) * .998, y1 = Math.max(...ys) * 1.002;
+  const X = v => PL + (v - x0) / (x1 - x0) * (W - PL - PR);
+  const Y = v => PT + (1 - (v - y0) / (y1 - y0)) * EH;
+  let peak = -1e18;
+  const dd = pts.map(([t, v]) => { peak = Math.max(peak, v); return [t, v / peak - 1]; });
+  const ddMin = Math.min(...dd.map(d => d[1]), -0.01);
+  const DY = v => PT + EH + 22 + (v / ddMin) * (H - PT - EH - PB - 22);
+
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join('');
+  const area = `M${X(pts[0][0])} ${Y(y0)}` + pts.map(p => `L${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join('')
+             + `L${X(pts[pts.length - 1][0])} ${Y(y0)}Z`;
+  const ddArea = `M${X(dd[0][0])} ${DY(0)}` + dd.map(p => `L${X(p[0]).toFixed(1)} ${DY(p[1]).toFixed(1)}`).join('')
+             + `L${X(dd[dd.length - 1][0])} ${DY(0)}Z`;
+
+  const ticks = [];
+  for (let i = 0; i <= 4; i++) ticks.push(y0 + (y1 - y0) * i / 4);
+  const sp = new Date(D.window.split + 'T00:00:00Z').getTime();
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="帳戶淨值曲線">
+    <defs><linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3987e5" stop-opacity=".26"/>
+      <stop offset="100%" stop-color="#3987e5" stop-opacity="0"/></linearGradient></defs>`;
+  ticks.forEach(t => {
+    s += `<line x1="${PL}" y1="${Y(t).toFixed(1)}" x2="${W - PR}" y2="${Y(t).toFixed(1)}"
+            stroke="#2c2c2a" stroke-width="1"/>
+          <text x="${PL - 8}" y="${(Y(t) + 4).toFixed(1)}" fill="#898781" font-size="11"
+            text-anchor="end" font-family="ui-monospace,monospace">${Math.round(t / 1000)}k</text>`;
+  });
+  if (sp > x0 && sp < x1)
+    s += `<line x1="${X(sp).toFixed(1)}" y1="${PT}" x2="${X(sp).toFixed(1)}" y2="${PT + EH}"
+            stroke="#f0b429" stroke-width="1" stroke-dasharray="4 4"/>
+          <text x="${(X(sp) + 6).toFixed(1)}" y="${PT + 12}" fill="#f0b429" font-size="11"
+            font-family="ui-monospace,monospace">樣本外起點</text>`;
+  s += `<path d="${area}" fill="url(#eg)"/><path d="${line}" fill="none" stroke="#3987e5" stroke-width="2"
+          stroke-linejoin="round"/>`;
+  s += `<path d="${ddArea}" fill="#d03b3b" fill-opacity=".3"/>
+        <line x1="${PL}" y1="${DY(0)}" x2="${W - PR}" y2="${DY(0)}" stroke="#383835"/>
+        <text x="${PL - 8}" y="${DY(ddMin) + 4}" fill="#898781" font-size="11" text-anchor="end"
+          font-family="ui-monospace,monospace">${(ddMin * 100).toFixed(0)}%</text>`;
+  const d0 = new Date(x0), d1 = new Date(x1);
+  s += `<text x="${PL}" y="${H - 4}" fill="#898781" font-size="11"
+          font-family="ui-monospace,monospace">${d0.toISOString().slice(0, 10)}</text>
+        <text x="${W - PR}" y="${H - 4}" fill="#898781" font-size="11" text-anchor="end"
+          font-family="ui-monospace,monospace">${d1.toISOString().slice(0, 10)}</text>`;
+  s += `<rect id="eqhit" x="${PL}" y="${PT}" width="${W - PL - PR}" height="${EH}" fill="transparent"/>
+        <line id="eqcross" x1="0" y1="${PT}" x2="0" y2="${PT + EH}" stroke="#7d8b9b"
+          stroke-width="1" opacity="0"/><circle id="eqdot" r="4" fill="#3987e5" stroke="#161b23"
+          stroke-width="2" opacity="0"/></svg>`;
+  $('#equity').innerHTML = s;
+  $('#eqcap').textContent = `最終淨值 $${Math.round(pts[pts.length - 1][1]).toLocaleString()}。`;
+
+  const svg = $('#equity svg'), hit = $('#eqhit'), cr = $('#eqcross'), dot = $('#eqdot');
+  hit.addEventListener('mousemove', e => {
+    const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) / r.width * W;
+    const v = x0 + (sx - PL) / (W - PL - PR) * (x1 - x0);
+    let bi = 0; for (let i = 1; i < pts.length; i++) if (Math.abs(pts[i][0] - v) < Math.abs(pts[bi][0] - v)) bi = i;
+    cr.setAttribute('x1', X(pts[bi][0])); cr.setAttribute('x2', X(pts[bi][0])); cr.setAttribute('opacity', .5);
+    dot.setAttribute('cx', X(pts[bi][0])); dot.setAttribute('cy', Y(pts[bi][1])); dot.setAttribute('opacity', 1);
+    showTip(e, `${new Date(pts[bi][0]).toISOString().slice(0, 10)}<br><b>$${Math.round(pts[bi][1]).toLocaleString()}</b>`
+      + `<br>回撤 ${(dd[bi][1] * 100).toFixed(1)}%`);
+  });
+  hit.addEventListener('mouseleave', () => { cr.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); hideTip(); });
+}
+drawEquity();
+
+/* ---------- generic heatmap ---------- */
+function drawHeat(node, g, o) {
+  o = o || {};
+  const rows = g.rows, cols = g.cols, z = g.z, n = g.n;
+  if (!rows.length || !cols.length) { node.innerHTML = '<p class="mut">沒有資料</p>'; return; }
+  const flat = z.flat().filter(v => v !== null && isFinite(v));
+  const max = o.max || Math.max(...flat.map(Math.abs), 1e-9);
+  const CW = Math.max(o.cw || 0, Math.min(84, Math.max(40, 980 / cols.length)));
+  const CH = o.ch || 30, LW = o.lw || 92, TH = 24;
+  const W = LW + cols.length * CW, H = TH + rows.length * CH;
+  let s = `<div class="scroll"><svg viewBox="0 0 ${W} ${H}" style="min-width:${Math.min(W, 1100)}px"
+      role="img" aria-label="${o.title || 'heatmap'}">`;
+  cols.forEach((c, j) => {
+    s += `<text x="${LW + j * CW + CW / 2}" y="16" fill="#898781" font-size="10.5" text-anchor="middle"
+       font-family="ui-monospace,monospace">${c}</text>`;
+  });
+  rows.forEach((r, i) => {
+    s += `<text x="${LW - 8}" y="${TH + i * CH + CH / 2 + 4}" fill="#a6b3c2" font-size="11"
+       text-anchor="end" font-family="ui-monospace,monospace">${r}</text>`;
+    cols.forEach((c, j) => {
+      const v = z[i][j], cnt = n ? n[i][j] : null;
+      const x = LW + j * CW, y = TH + i * CH;
+      // 2px surface gap between cells so adjacent fills never bleed together
+      s += `<rect x="${x + 1}" y="${y + 1}" width="${CW - 2}" height="${CH - 2}" rx="3"
+         fill="${o.seq ? seqColor(v, max) : divColor(v, max)}" data-i="${i}" data-j="${j}"
+         class="hc" ${v === null ? 'stroke="#2a333f" stroke-dasharray="2 2"' : ''}/>`;
+      if (v !== null && CW >= 44)
+        s += `<text x="${x + CW / 2}" y="${y + CH / 2 + 4}" font-size="10.5" text-anchor="middle"
+           pointer-events="none" fill="${inkOn(v, max, o.seq ? .6 : .75)}"
+           font-family="ui-monospace,monospace">${o.fmt ? o.fmt(v) : fmt(v, 2)}</text>`;
+    });
+  });
+  s += '</svg></div>';
+  node.innerHTML = s;
+  node.querySelectorAll('.hc').forEach(rc => {
+    rc.addEventListener('mousemove', e => {
+      const i = +rc.dataset.i, j = +rc.dataset.j, v = z[i][j];
+      showTip(e, `${o.rowLab || ''}<b>${rows[i]}</b> × ${o.colLab || ''}<b>${cols[j]}</b><br>`
+        + (v === null ? '無資料' : `${o.metricLab || '值'} <b>${o.fmt ? o.fmt(v) : fmt(v, 3)}</b>`)
+        + (n ? `<br>樣本 ${n[i][j]}` : ''));
+    });
+    rc.addEventListener('mouseleave', hideTip);
+  });
+  return { rows, cols, z, n, fmt: o.fmt };
+}
+
+function buildTable(id, g, o) {
+  const t = el('table');
+  let h = '<thead><tr><th></th>' + g.cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  g.rows.forEach((r, i) => {
+    h += `<tr><th>${r}</th>` + g.cols.map((c, j) => {
+      const v = g.z[i][j];
+      return `<td>${v === null ? '–' : (o && o.fmt ? o.fmt(v) : fmt(v, 3))}</td>`;
+    }).join('') + '</tr>';
+  });
+  t.innerHTML = h + '</tbody>';
+  const w = $('#' + id + '_table'); w.innerHTML = ''; w.appendChild(t);
+}
+const toggleTable = id => $('#' + id + '_table').classList.toggle('hidden');
+
+/* ---------- sweep pivot heatmap ---------- */
+const SW = D.sweep;
+const LABEL = {
+  tf: '執行週期',
+  min_swing: 'zigzag 門檻 (ATR)', band_atr: '共振帶半寬 (ATR)', entry_mode: '進場方式',
+  sl_mode: '停損位置', min_conf: '共振數下限', min_rr: 'RR 下限',
+  sl_atr_mult: 'SL / ATR 下限', max_legs: '推動浪上限', mtf: '多週期要求', confirm: '確認 K 棒'
+};
+const MLABEL = {
+  expectancy: '期望值 (R)', is_exp: '樣本內期望值 (R)', oos_exp: '樣本外期望值 (R)',
+  win_rate: '勝率', profit_factor: '獲利因子', tstat: 't 統計量',
+  total_r: '總 R', max_dd_r: '最大回撤 (R)', trades: '交易筆數',
+  tpy: '每年交易筆數', r_per_year: '年均 R'
+};
+const WEIGHTED = new Set(['expectancy', 'is_exp', 'oos_exp', 'win_rate']);
+const ST = { x: 'min_rr', y: 'sl_atr_mult', metric: 'expectancy', minTrades: 30 };
+
+function buildCtrls() {
+  const c = $('#hmctrl');
+  const mk = (lab, id, opts, val) => {
+    const d = el('div', 'ctrl');
+    d.innerHTML = `<label for="${id}">${lab}</label><select id="${id}">` +
+      opts.map(([v, t]) => `<option value="${v}"${v === val ? ' selected' : ''}>${t}</option>`).join('') +
+      '</select>';
+    c.appendChild(d); return d;
+  };
+  const P = SW.params.map(p => [p, LABEL[p] || p]);
+  mk('橫軸', 'hx', P, ST.x);
+  mk('縱軸', 'hy', P, ST.y);
+  mk('指標', 'hm', SW.metrics.map(m => [m, MLABEL[m] || m]), ST.metric);
+  SW.params.forEach(p => {
+    const opts = [['*', '全部']].concat(SW.levels[p].map((v, i) => [String(i), v]));
+    mk(LABEL[p] || p, 'f_' + p, opts, '*').dataset.filter = p;
+  });
+  const d = el('div', 'ctrl');
+  d.innerHTML = `<label for="mt">最少筆數 <span id="mtv">${ST.minTrades}</span></label>
+    <input type="range" id="mt" min="${SW.min_trades}" max="200" step="10"
+      value="${ST.minTrades}">`;
+  c.appendChild(d);
+  c.addEventListener('change', refreshHeat);
+  $('#mt').addEventListener('input', e => { $('#mtv').textContent = e.target.value; refreshHeat(); });
+}
+
+function refreshHeat() {
+  const x = $('#hx').value, y = $('#hy').value, m = $('#hm').value;
+  const minT = +$('#mt').value;
+  if (x === y) { $('#heat').innerHTML = '<p class="mut">請選擇兩個不同的軸。</p>'; return; }
+  const cols = SW.cols, XL = SW.levels[x], YL = SW.levels[y];
+  const sum = YL.map(() => XL.map(() => 0)), wt = YL.map(() => XL.map(() => 0)),
+        cnt = YL.map(() => XL.map(() => 0));
+  const filters = SW.params.filter(p => p !== x && p !== y)
+    .map(p => [p, $('#f_' + p).value]).filter(([, v]) => v !== '*');
+  const wgt = WEIGHTED.has(m);
+  for (let i = 0; i < SW.n; i++) {
+    if (cols.trades[i] < minT) continue;
+    let ok = true;
+    for (const [p, v] of filters) if (cols[p][i] !== +v) { ok = false; break; }
+    if (!ok) continue;
+    const r = cols[y][i], c = cols[x][i], w = wgt ? cols.trades[i] : 1;
+    sum[r][c] += cols[m][i] * w; wt[r][c] += w; cnt[r][c]++;
+  }
+  const z = sum.map((row, i) => row.map((v, j) => wt[i][j] ? v / wt[i][j] : null));
+  const g = { z, n: cnt, rows: YL, cols: XL };
+  const f = m === 'win_rate' ? (v => pct(v, 0))
+          : m === 'trades' ? (v => Math.round(v))
+          : (v => fmt(v, m === 'total_r' || m === 'max_dd_r' ? 0 : 2));
+  drawHeat($('#heat'), g, {
+    fmt: f, rowLab: (LABEL[y] || y) + ' ', colLab: (LABEL[x] || x) + ' ',
+    metricLab: MLABEL[m] || m, title: '參數掃描熱圖', ch: 34
+  });
+  buildTable('heat', g, { fmt: f });
+  $('#ramplab').textContent = MLABEL[m] || m;
+  const kept = cnt.flat().reduce((a, b) => a + b, 0);
+  $('#sweepline').innerHTML = `共 <b>${D.sweep_total.toLocaleString()}</b> 次回測
+    （${SW.params.length} 個參數軸；本頁載入其中交易 ≥ ${SW.min_trades} 筆的
+    ${SW.n.toLocaleString()} 組，其餘留在 <code>sweep.csv</code>）。
+    目前條件下納入 <b>${kept.toLocaleString()}</b> 組。
+    把<code>執行週期</code>拉到任一軸，就能直接比較 1H／4H／日線；
+    把 <code>RR 下限</code>×<code>SL / ATR 下限</code> 放兩軸，就是 E1 與 E2 的取捨圖。`;
+}
+buildCtrls(); refreshHeat();
+['ramp', 'ramp2', 'ramp4'].forEach(paintRamp);
+$('#ramp5').style.background = 'linear-gradient(90deg,' +
+  Array.from({ length: 16 }, (_, i) => seqColor(i / 15, 1)).join(',') + ')';
+
+/* ---------- trade frequency, split by execution timeframe ---------- */
+const FQ = { x: 'min_rr', y: 'sl_atr_mult', metric: 'tpy' };
+function buildFreqCtrls() {
+  const c = $('#fqctrl');
+  const P = SW.params.filter(p => p !== 'tf').map(p => [p, LABEL[p] || p]);
+  const mk = (lab, id, opts, val) => {
+    const d = el('div', 'ctrl');
+    d.innerHTML = `<label for="${id}">${lab}</label><select id="${id}">` +
+      opts.map(([v, t]) => `<option value="${v}"${v === val ? ' selected' : ''}>${t}</option>`)
+        .join('') + '</select>';
+    c.appendChild(d);
+  };
+  mk('橫軸', 'fx', P, FQ.x);
+  mk('縱軸', 'fy', P, FQ.y);
+  mk('指標', 'fm', [['tpy', '每年交易筆數'], ['trades', '總交易筆數'],
+                    ['expectancy', '期望值 (R)'], ['r_per_year', '年均 R']], FQ.metric);
+  c.addEventListener('change', refreshFreq);
+}
+
+function refreshFreq() {
+  const x = $('#fx').value, y = $('#fy').value, m = $('#fm').value;
+  const grid = $('#freqgrid');
+  if (x === y) { grid.innerHTML = '<p class="mut">請選擇兩個不同的軸。</p>'; return; }
+  const tfIdx = SW.levels.tf, cols = SW.cols;
+  const XL = SW.levels[x], YL = SW.levels[y];
+  const panels = tfIdx.map(() => ({
+    sum: YL.map(() => XL.map(() => 0)), cnt: YL.map(() => XL.map(() => 0))
+  }));
+  for (let i = 0; i < SW.n; i++) {
+    const p = panels[cols.tf[i]];
+    const r = cols[y][i], c = cols[x][i];
+    p.sum[r][c] += cols[m][i]; p.cnt[r][c]++;
+  }
+  // one shared scale across the three panels — small multiples only compare if
+  // the colour means the same thing in each
+  let max = 1e-9;
+  const gs = panels.map(p => {
+    const z = p.sum.map((row, i) => row.map((v, j) => p.cnt[i][j] ? v / p.cnt[i][j] : null));
+    z.flat().forEach(v => { if (v !== null && isFinite(v)) max = Math.max(max, Math.abs(v)); });
+    return { z, n: p.cnt, rows: YL, cols: XL };
+  });
+  const f = m === 'tpy' ? (v => v >= 10 ? Math.round(v) : fmt(v, 1))
+          : m === 'trades' ? (v => Math.round(v)) : (v => fmt(v, 2));
+  const seq = m === 'tpy' || m === 'trades';
+
+  grid.innerHTML = '';
+  const byTf = Object.fromEntries(D.tf_compare.map(t => [t.tf, t]));
+  tfIdx.forEach((tf, k) => {
+    const fig = el('figure');
+    const head = el('div');
+    const stack = D.stack[tf] || [tf];
+    head.innerHTML = `<div style="font-weight:600;margin-bottom:2px">${stack[0]} 執行</div>
+      <div class="mut" style="font-size:12px;font-family:var(--mono);margin-bottom:8px">
+        方向看${stack[2]} · 空間看${stack[1]} ·
+        ${byTf[tf] ? byTf[tf].years + ' 年資料' : ''}</div>`;
+    fig.appendChild(head);
+    const body = el('div');
+    fig.appendChild(body);
+    grid.appendChild(fig);
+    drawHeat(body, gs[k], {
+      fmt: f, seq, max, ch: 30, cw: 62, lw: 74,
+      rowLab: (LABEL[y] || y) + ' ', colLab: (LABEL[x] || x) + ' ',
+      metricLab: m === 'tpy' ? '每年筆數' : (MLABEL[m] || m),
+      title: `${stack[0]} 交易頻率熱圖`
+    });
+  });
+  buildTable('freq', gs[0], { fmt: f });
+  $('#freqlab').textContent = m === 'tpy'
+    ? '每年交易筆數（三張圖共用同一色階）' : (MLABEL[m] || m) + '（三張圖共用同一色階）';
+  $('#freqline').innerHTML = `<b>筆數不能直接比，頻率可以。</b>
+    1H 只有 ${byTf['1h'].years} 年資料、日線有 ${byTf['1d'].years} 年，所以同一格的「總筆數」在日線上
+    天生比較大。這裡把它換算成<b>每年幾筆</b>，並且把三個週期拆成三張圖、共用同一個色階，
+    才能看出同一組門檻在不同週期上實際會讓你交易多密。
+    手冊的頻率預算是<b>每週 3–4 筆</b>（約每年 ${(3.5 * 52).toFixed(0)} 筆）。`;
+}
+buildFreqCtrls(); refreshFreq();
+
+/* ---------- robustness ---------- */
+{
+  const r = D.robustness;
+  $('#robline').innerHTML = `把資料切成前 ${D.window.split} 之前（樣本內）與之後（樣本外）。
+    若某組參數真的抓到市場結構，兩邊的期望值應該同號。`;
+  // three categorical slots — the palette's first three validate on the all-pairs
+  // pairlist, which is the one that applies to a scatter
+  const TFC = { '1h': '#3987e5', '4h': '#d95926', '1d': '#199e70' };
+  const pts = r.scatter;
+  const W = 520, H = 380, P = 46;
+  const ax = Math.max(...pts.map(p => Math.max(Math.abs(p[0]), Math.abs(p[1]))), .1);
+  const X = v => P + (v + ax) / (2 * ax) * (W - P - 14);
+  const Y = v => 14 + (1 - (v + ax) / (2 * ax)) * (H - P - 14);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="樣本內與樣本外期望值散點圖">`;
+  s += `<line x1="${X(-ax)}" y1="${Y(0)}" x2="${X(ax)}" y2="${Y(0)}" stroke="#2c2c2a"/>
+        <line x1="${X(0)}" y1="${Y(-ax)}" x2="${X(0)}" y2="${Y(ax)}" stroke="#2c2c2a"/>
+        <line x1="${X(-ax)}" y1="${Y(-ax)}" x2="${X(ax)}" y2="${Y(ax)}" stroke="#f0b429"
+          stroke-width="1" stroke-dasharray="5 4" opacity=".55"/>`;
+  pts.forEach(([a, b, tf]) => {
+    s += `<circle cx="${X(a).toFixed(1)}" cy="${Y(b).toFixed(1)}" r="2.6"
+       fill="${TFC[tf] || '#898781'}" fill-opacity=".4"/>`;
+  });
+  Object.entries(TFC).forEach(([k, v], i) => {
+    s += `<circle cx="${P + 8}" cy="${22 + i * 17}" r="4" fill="${v}"/>
+      <text x="${P + 18}" y="${26 + i * 17}" fill="#a6b3c2" font-size="11"
+        font-family="ui-monospace,monospace">${k}  r=${fmt(r.by_tf[k], 2)}</text>`;
+  });
+  s += `<text x="${W / 2}" y="${H - 8}" fill="#898781" font-size="11" text-anchor="middle"
+      font-family="ui-monospace,monospace">樣本內期望值 (R)</text>
+    <text x="12" y="${H / 2}" fill="#898781" font-size="11" text-anchor="middle"
+      transform="rotate(-90 12 ${H / 2})" font-family="ui-monospace,monospace">樣本外期望值 (R)</text>
+    <text x="${X(ax) - 4}" y="${Y(ax) + 14}" fill="#f0b429" font-size="10.5" text-anchor="end"
+      font-family="ui-monospace,monospace">完美外推線</text></svg>`;
+  $('#scatter').innerHTML = s;
+
+  const rows = [
+    ['納入的設定組數', r.eligible.toLocaleString()],
+    ['樣本內 / 樣本外 相關係數（全部）', fmt(r.corr_is_oos, 3)],
+    ['　└ 1H / 4H / 日線',
+     `${fmt(r.by_tf['1h'], 2)} / ${fmt(r.by_tf['4h'], 2)} / ${fmt(r.by_tf['1d'], 2)}`],
+    ['樣本內前 25 名 · 樣本內平均', sgn(fmt(r.top25_is, 3)) + 'R'],
+    ['樣本內前 25 名 · 樣本外平均', sgn(fmt(r.top25_oos, 3)) + 'R'],
+    ['全部設定 · 樣本外平均', sgn(fmt(r.all_oos, 3)) + 'R'],
+    ['兩段期間都 > +0.05R 的設定數', `${r.both_positive} / ${SW.n.toLocaleString()}`],
+  ];
+  $('#robstats').innerHTML = '<table><tbody>' + rows.map(([a, b]) =>
+    `<tr><td style="white-space:normal">${a}</td><td style="text-align:right;color:var(--tx)">
+      <b>${b}</b></td></tr>`).join('') + '</tbody></table>';
+}
+
+/* ---------- funnels ---------- */
+function drawFunnel(node, rows) {
+  const top = Math.max(...rows.map(r => r[1]), 1);
+  node.innerHTML = rows.map(([nm, v], i) => {
+    const w = Math.max(v / top * 100, v > 0 ? 1.2 : 0);
+    const col = i < 4 ? '#3987e5' : '#f0b429';
+    return `<div class="row"><div class="nm">${nm}</div>
+      <div class="tr"><div class="fl" style="width:${w}%;background:${col};opacity:${.45 + .5 * (1 - i / rows.length)}"></div></div>
+      <div class="ct">${v.toLocaleString()}</div></div>`;
+  }).join('');
+}
+drawFunnel($('#funnel'), D.reference.funnel);
+drawFunnel($('#funnel2'), D.manual.funnel);
+{
+  const rj = D.reference.rejects, ent = Object.entries(rj).sort((a, b) => b[1] - a[1]);
+  const tot = ent.reduce((a, b) => a + b[1], 0);
+  const NM = {
+    day_limit: '當日已開 2 筆', max_open: '同時持倉上限', same_pair: '同一貨幣對已有持倉',
+    daily_stop: '單日虧損 2% 停止', weekly_stop: '單週虧損 5% 停止', loss_streak: '連虧 3 筆暫停'
+  };
+  const c = el('div', 'card warn');
+  c.innerHTML = `<div class="t">帳戶層規則再刷掉 ${tot.toLocaleString()} 筆</div>
+    <p style="margin-bottom:0">${ent.map(([k, v]) =>
+      `${NM[k] || (k.startsWith('corr_') ? '相關性：' + k.slice(5) + ' 曝險已滿' : k)} <b style="color:var(--tx)">${v}</b>`)
+      .join(' · ')}</p>`;
+  $('#rejects').appendChild(c);
+}
+
+/* ---------- monthly / session / pair heatmaps ---------- */
+drawHeat($('#monthly'), D.reference.monthly, {
+  fmt: v => (v * 100).toFixed(1) + '%', metricLab: '月報酬', title: '月報酬熱圖',
+  rowLab: '', colLab: '', ch: 32, cw: 74, lw: 56
+});
+buildTable('monthly', D.reference.monthly, { fmt: v => (v * 100).toFixed(1) + '%' });
+
+drawHeat($('#bypair'), D.heat_pair, {
+  fmt: v => v.toFixed(2), metricLab: '平均 R', title: '貨幣對熱圖',
+  ch: 22, cw: 96, lw: 88
+});
+buildTable('bypair', D.heat_pair, { fmt: v => v.toFixed(2) });
+
+/* ---------- trade log ---------- */
+{
+  const t = D.trades.slice().reverse().slice(0, 120);   // newest 120; full list in the CSV
+  const NM = Object.fromEntries(D.universe.map(u => [u.sym, u.name]));
+  const hd = ['進場時間', '貨幣對', '方向', '進場', 'SL', 'TP', 'RR', 'SL/ATR', '共振',
+              '風險(pips)', '結果 R', '損益', '出場'];
+  const WHY = { tp: '停利', sl: '停損', scratch: '無確認平倉', time: '逾時' };
+  $('#trades').innerHTML = '<thead><tr>' + hd.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'
+    + t.map(r => `<tr>
+      <td>${r.entry_time.slice(0, 16)}</td>
+      <td style="color:var(--tx)">${NM[r.symbol] || r.symbol}</td>
+      <td class="${r.dr > 0 ? 'up' : 'dn'}">${r.dr > 0 ? '多' : '空'}</td>
+      <td>${r.entry.toFixed(5)}</td><td>${r.sl.toFixed(5)}</td><td>${r.tp.toFixed(5)}</td>
+      <td>${fmt(r.rr)}</td><td>${fmt(r.sl_atr)}</td><td>${r.n_conf}</td>
+      <td>${fmt(r.risk_pips, 1)}</td>
+      <td class="${r.r_net > 0 ? 'up' : 'dn'}">${sgn(fmt(r.r_net, 2))}</td>
+      <td class="${r.pnl > 0 ? 'up' : 'dn'}">${sgn(Math.round(r.pnl).toLocaleString())}</td>
+      <td class="mut">${WHY[r.exit_why] || r.exit_why}</td></tr>`).join('') + '</tbody>';
+}
+</script>

@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------- generated data
+# All of this is reproducible with `python fetch.py` + `python sweep.py`, and it is
+# ~170 MB, so it stays out of the repo. start.bat rebuilds whatever is missing.
+data/
+sweep.csv
+candidates.parquet
+dashboard.html
+dashboard_data.json
+plan.json
+events.jsonl
+state.json
+sweep_log.txt
+
+# ---------------------------------------------------------------- python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+
+# ---------------------------------------------------------------- editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
