@@ -72,10 +72,14 @@ LADDERS_US = {
         "min_conf": 3, "min_rr": 1.0, "sl_atr_mult": 1.5, "max_legs": 99,
         "mtf": "off", "confirm": "any",
     },
+    # US daily over 14.9 years: 1,086 cells positive in both halves. This is the
+    # highest t-stat among them (4.28 over 2,076 trades) AND the only place in the
+    # whole project where the manual's E1 survives as written — a 1:2 reward on a
+    # daily equity swing is reachable, which it never was on 1H FX.
     "1d": {
-        "tf": "1d", "min_swing": 2.0, "band_atr": 1.0,
+        "tf": "1d", "min_swing": 3.0, "band_atr": 0.75,
         "entry_mode": "limit", "sl_mode": "zone",
-        "min_conf": 3, "min_rr": 1.0, "sl_atr_mult": 1.5, "max_legs": 99,
+        "min_conf": 3, "min_rr": 2.0, "sl_atr_mult": 1.0, "max_legs": 99,
         "mtf": "off", "confirm": "any",
     },
 }
