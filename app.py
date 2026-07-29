@@ -136,6 +136,26 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 s = {k: STATE[k] for k in ("busy", "step", "last")}
             s["log"] = STATE["log"][-12:]
             return self._json(s)
+        elif p.startswith("/api/live"):
+            # 10-second refresh: re-price the existing plan book, do NOT re-run the
+            # gates. Those only move on a bar close, and re-deriving them at this
+            # cadence would be hundreds of downloads for an unchanged answer.
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            mk = (q.get("market") or ["fx"])[0]
+            try:
+                import quotes, json as _j
+                pf = os.path.join(HERE, f"plan_{mk}.json")
+                if not os.path.exists(pf):
+                    return self._json({"error": "no plan"}, 404)
+                book = _j.load(open(pf, encoding="utf-8"))
+                upd, changed, fetched = quotes.repriced(book["plans"], mk)
+                for c in changed:
+                    say(f"[{mk}] {c['name']} {c['tf']}  {c['from']} → {c['to']}")
+                return self._json({"updates": upd, "changed": changed,
+                                   "fetched": fetched,
+                                   "at": time.strftime("%H:%M:%S")})
+            except Exception as e:
+                return self._json({"error": f"{type(e).__name__}: {e}"[:200]}, 500)
         elif p == "/api/scan":                 # GET so a plain link works too
             ok = threading.Thread(target=scan, daemon=True).start() or True
             return self._json({"started": ok})
