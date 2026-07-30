@@ -184,7 +184,7 @@ tbody tr:hover td{background:var(--panel2)}
   border-radius:9px;padding:12px 14px;font-size:11.5px;color:var(--tx3);overflow-x:auto;
   margin:10px 0 0"></pre>
 <header>
-  <div class="kicker">Algorithmic Trading Research · Forex</div>
+  <div class="kicker" id="kicker">Algorithmic Trading Research</div>
   <h1>交易操作手冊 — 策略回測儀表板</h1>
   <p class="sub" id="sub"></p>
   <div class="meta" id="meta"></div>
@@ -422,13 +422,16 @@ function showTip(e, html) {
 const hideTip = () => tip.style.opacity = 0;
 
 /* ---------- header ---------- */
+$('#kicker').textContent = 'Algorithmic Trading Research · ' +
+  ({ fx: 'Forex', us: 'US Equities', tw: 'TW Equities' }[D.market] || 'Markets');
 $('#sub').innerHTML = `把手冊的 GATE 1–7 與 18 項進場前提條件寫成程式，在
-  <b>${D.universe.length} ${D.market === 'fx' ? '組外匯貨幣對' : (D.market === 'tw' ? '檔台股' : '檔美股')}</b>的 <b>1 小時、4 小時與日線</b>三種執行週期上重跑
-  （共 ${((D.bars['1h'] + D.bars['4h'] + D.bars['1d']) / 1e6).toFixed(2)}M 根 K 棒），
+  <b>${D.universe.length} ${D.market === 'fx' ? '組外匯貨幣對' : (D.market === 'tw' ? '檔台股' : '檔美股')}</b>的 <b>${TFLIST().map(TFN).join('、')}</b>執行週期上重跑
+  （共 ${(TFLIST().reduce((a, k) => a + (D.bars[k] || 0), 0) / 1e6).toFixed(2)}M 根 K 棒），
   並用參數掃描檢驗每一個門檻值是否真的有效。`;
+const UNIT = D.market === 'fx' ? '組貨幣對' : '檔股票';
 $('#meta').textContent =
-  `${D.universe.length} 貨幣對  ·  1H / 4H / 日線 三種執行週期  ·  `
-  + `日線 ${D.window.d_start} 起，1H ${D.window.start} 起，皆至 ${D.window.end}  ·  `
+  `${D.universe.length} ${UNIT}  ·  ${TFLIST().map(TFN).join(' / ')} 執行週期  ·  `
+  + `日線 ${D.window.d_start} 起` + (HAS_TF('1h') || HAS_TF('4h') ? `，盤中 ${D.window.start} 起` : '') + `，皆至 ${D.window.end}  ·  `
   + `${D.sweep_total.toLocaleString()} 次回測  ·  產生於 ${D.generated}`;
 
 /* ---------- verdict ---------- */
