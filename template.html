@@ -528,16 +528,22 @@ if (SERVED && D.plan) {
         if (p.state === 'ready') ready++;
         const card = document.querySelector(`.sig[data-k="${p.sym}|${p.tf}"]`);
         if (card) {
-          card.className = 'sig ' + p.state;
+          card.className = 'sig ' + (CLS[p.state] || p.state);
           const st = card.querySelector('[data-st]');
           if (st && STATE[p.state]) {
             st.textContent = STATE[p.state][0];
             st.className = 'st ' + STATE[p.state][1];
+            st.title = p.why || '';
           }
           const g = card.querySelector('[data-gap]');
           if (g) g.textContent = Math.abs(p.gap_pips);
           const gp = card.querySelector('[data-gpct]');
           if (gp) gp.textContent = p.gap_pct;
+          const wy = card.querySelector('[data-why]');
+          if (wy) {
+            wy.innerHTML = p.why ? `⚠ <b>${p.why}</b>` : '';
+            wy.classList.toggle('hidden', !p.why);
+          }
         }
       });
       const t = $('#live_at');
@@ -573,12 +579,18 @@ document.querySelectorAll('.tb').forEach(b => b.addEventListener('click', () => 
 
 /* ---------- live signals ---------- */
 const STATE = {
-  ready: ['✓ 現在可下單', 'up'], armed: ['· 等待價格到區', ''],
-  blocked: ['× 條件未通過', 'mut'], invalid: ['× 區域已被跌破', 'dn'],
+  ready:   ['✓ 現在可下單', 'up'],
+  armed:   ['· 等待價格到區', ''],
+  stale:   ['⚠ 報價過舊，先重新掃描', 'dn'],
+  blocked: ['× 條件未通過', 'mut'],
+  passed:  ['× 已跌穿進場區', 'dn'],
+  stopped: ['× 已觸及停損', 'dn'],
+  invalid: ['× 帶動能貫穿，作廢', 'dn'],
 };
+const CLS = { stopped: 'invalid', passed: 'invalid', stale: 'invalid' };
 
 function liveCard(p) {
-  const [lab, cls] = STATE[p.state];
+  const [lab, cls] = STATE[p.state] || ['· ' + p.state, ''];
   const dir = p.dr > 0 ? '多' : '空';
   const tfn = (D.stack[p.tf] || [p.tf])[0];
   const U = p.unit || 'pips';
@@ -591,7 +603,7 @@ function liveCard(p) {
   const px = [['進場', p.entry], ['停損 SL', p.sl], ['停利 TP', p.tp],
               [p.size_label || '手數', C_isfx(p) ? p.lots : Math.round(p.lots)], ['風險', '$' + Math.round(p.risk_usd).toLocaleString()],
               ['RR', p.rr]];
-  return `<div class="sig ${p.state}" data-k="${p.sym}|${p.tf}">
+  return `<div class="sig ${CLS[p.state] || p.state}" data-k="${p.sym}|${p.tf}">
     <div class="hd">
       <span class="pair">${p.name}</span>
       <span class="${p.dr > 0 ? 'up' : 'dn'}" style="font-weight:600">${dir}</span>
@@ -613,6 +625,7 @@ function liveCard(p) {
       下單時 SL 與 TP 必須同時掛上，然後關掉平台。</span>
       <span class="lb">共振因素</span>${p.factors.join(' · ')}
     </div>
+    ${p.why ? `<div class="fail" data-why>⚠ <b>${p.why}</b></div>` : '<div class="fail hidden" data-why></div>'}
     ${p.failed.length ? `<div class="fail">未通過：<b>${p.failed.join('、')}</b></div>` : ''}
   </div>`;
 }
@@ -626,6 +639,7 @@ function renderLive() {
     return;
   }
   const n = s => P.plans.filter(p => p.state === s).length;
+  const nDead = P.plans.filter(p => ['stopped', 'passed', 'invalid', 'stale'].includes(p.state)).length;
   const age = (Date.now() - Date.parse(P.as_of.replace(' UTC', 'Z'))) / 36e5;
   const stale = age > 24;
   $('#live_head').innerHTML = `
@@ -635,13 +649,14 @@ function renderLive() {
       <p>資料時間 <b style="color:var(--tx)">${P.as_of}</b>
         ${stale ? `<span class="dn">（已過 ${age.toFixed(0)} 小時，請重新執行 <code>python bot.py</code>）</span>`
                 : `<span class="mut">（${age.toFixed(1)} 小時前）</span>`} ·
-        掃描 ${P.scanned} 次（${D.universe.length} 組貨幣對 × ${P.tfs.length} 個週期） ·
+        掃描 ${P.scanned} 次（${D.universe.length} ${D.market === 'us' ? '檔股票' : '組貨幣對'} × ${P.tfs.length} 個週期） ·
         帳戶 $${P.equity.toLocaleString()}，單筆風險 ${(P.account.risk_pct * 100).toFixed(0)}%
         ${SERVED ? `<br><span class="mut" id="live_at" style="font-family:var(--mono);font-size:12px">
           即時報價每 10 秒更新…</span>` : ''}</p>
       <p style="margin-bottom:0">可下單 <b class="up">${n('ready')}</b> ·
         等待價格到區 <b style="color:var(--acc)">${n('armed')}</b> ·
-        條件未通過 <b>${n('blocked')}</b> · 已失效 <b>${n('invalid')}</b>
+        條件未通過 <b>${n('blocked')}</b> · 已失效 <b>${nDead}</b>
+        <span class="mut">（含已觸及停損 ${n('stopped')} · 已跌穿進場區 ${n('passed')}）</span>
         ${n('ready') > P.account.max_trades_day
           ? `<br><span style="color:var(--acc)">當日上限 ${P.account.max_trades_day} 筆，挑 RR 最高的執行。</span>` : ''}</p>
     </div>`;
@@ -674,7 +689,8 @@ function renderLive() {
   if (!c.dataset.built) {
     c.dataset.built = 1;
     const opts = [['actionable', '可下單 + 等待中'], ['ready', '只看可下單'],
-                  ['armed', '只看等待中'], ['blocked', '只看未通過'], ['all', '全部']];
+                  ['armed', '只看等待中'], ['blocked', '只看未通過'],
+                  ['dead', '只看已失效'], ['all', '全部']];
     const tfo = [['*', '全部週期']].concat(P.tfs.map(t => [t, D.stack[t][0] + ' 執行']));
     [['顯示', 'lv_f', opts, 'actionable'], ['週期', 'lv_tf', tfo, '*']].forEach(([l, id, o, v]) => {
       const d = el('div', 'ctrl');
@@ -689,6 +705,7 @@ function renderLive() {
   const tf = $('#lv_tf') ? $('#lv_tf').value : '*';
   let list = P.plans.filter(p => tf === '*' || p.tf === tf);
   if (f === 'actionable') list = list.filter(p => p.state === 'ready' || p.state === 'armed');
+  else if (f === 'dead') list = list.filter(p => ['stopped','passed','invalid','stale'].includes(p.state));
   else if (f !== 'all') list = list.filter(p => p.state === f);
 
   $('#live_list').innerHTML = list.length ? list.map(liveCard).join('')

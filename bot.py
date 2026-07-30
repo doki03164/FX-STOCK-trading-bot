@@ -16,6 +16,7 @@ import pandas as pd
 
 import config as C
 import gates
+import quotes
 import structure as S
 from loader import frame, htf_barrier, bars
 from report import LADDERS_BY_MARKET
@@ -57,7 +58,7 @@ def _entry_rule(mode, dr, near, dec, tf):
             f"出現順勢拒絕訊號才以市價{side}。K 棒未收線不進場。")
 
 
-def scan_live(equity, tf, quotes):
+def scan_live(equity, tf, px_map):
     """Every live plan on one execution timeframe, with entry and exit timing."""
     P = LADDERS_BY_MARKET.get(C.MARKET, LADDERS_BY_MARKET['fx'])[tf]
     out = []
@@ -145,13 +146,8 @@ def scan_live(equity, tf, quotes):
         failed = [k for k, v in checks.items() if not v]
 
         px = float(c[i])
-        in_zone = (l[i] <= z["hi"]) if dr > 0 else (h[i] >= z["lo"])
-        gap = (px - near) * dr                     # >0 means price must still come back
-        dead = (dr > 0 and px < z["lo"] - 0.5 * atr[i]) or \
-               (dr < 0 and px > z["hi"] + 0.5 * atr[i])
-
         if C.is_fx(sym):
-            pipv = pip_value_usd(sym, quotes.get(sym, px), quotes)
+            pipv = pip_value_usd(sym, px_map.get(sym, px), px_map)
         else:
             pipv = C.pip_size(sym)          # $0.01 move on one share = $0.01
         risk_usd = equity * C.ACCOUNT["risk_pct"]
@@ -160,11 +156,15 @@ def scan_live(equity, tf, quotes):
         dec = (3 if C.pair(sym)[1] in ("JPY", "HUF") else 5) if C.is_fx(sym) else 2
         last_close = pd.Timestamp(dates[i]) + BAR[tf]
 
-        state = ("invalid" if dead else "ready" if not failed and in_zone
-                 else "armed" if not failed else "blocked")
+        # state comes from quotes.restate so the freshly-scanned book and the live
+        # 10-second refresh can never disagree about what is actionable
+        stub = {"sym": sym, "dr": int(dr), "zone_lo": float(z["lo"]),
+                "zone_hi": float(z["hi"]), "entry": float(entry), "sl": float(sl),
+                "invalidate": float(far - dr * 0.5 * atr[i]), "failed": failed}
+        lv = quotes.restate(stub, px)
         out.append({
             "sym": sym, "name": C.UNIVERSE[sym], "tf": tf, "dr": int(dr),
-            "state": state, "in_zone": bool(in_zone),
+            "state": lv["state"], "why": lv["why"], "in_zone": lv["in_zone"],
             "price": round(px, dec), "as_of": str(last_close)[:16],
             "next_bar": str(last_close + BAR[tf])[:16],
             "expires": str(last_close + BAR[tf] * gates.PLAN_TTL)[:10],
@@ -173,8 +173,7 @@ def scan_live(equity, tf, quotes):
             "entry": round(float(entry), dec), "sl": round(float(sl), dec),
             "tp": round(float(tp), dec),
             "invalidate": round(float(far - dr * 0.5 * atr[i]), dec),
-            "gap_pips": round(float(gap) / (C.pip_size(sym) if C.is_fx(sym) else 1.0), 2),
-            "gap_pct": round(abs(gap) / px * 100, 2),
+            "gap_pips": lv["gap_pips"], "gap_pct": lv["gap_pct"],
             "rr": round(float(rr), 2), "sl_atr": round(float(sl_atr), 2),
             "n_conf": int(z["n"]),
             "factors": [k for k, v in z["fac"].items() if v],
@@ -205,11 +204,11 @@ def main():
 
     # not every name has an intraday file (US intraday is capped at 730 days and a
     # few listings are younger), so fall back to the daily close for the quote
-    quotes = {}
+    px_map = {}
     for s in C.SYMBOLS:
         for tf in ("1h", "1d"):
             try:
-                quotes[s] = float(bars(s, tf, C.MARKET).close.iloc[-1])
+                px_map[s] = float(bars(s, tf, C.MARKET).close.iloc[-1])
                 break
             except FileNotFoundError:
                 continue
@@ -217,9 +216,10 @@ def main():
     tfs = [a for a in sys.argv[1:] if a in _L] or list(_L)
     plans = []
     for tf in tfs:
-        plans += scan_live(equity, tf, quotes)
-    order = {"ready": 0, "armed": 1, "blocked": 2, "invalid": 3}
-    plans.sort(key=lambda p: (order[p["state"]], len(p["failed"]), -p["rr"]))
+        plans += scan_live(equity, tf, px_map)
+    order = {"ready": 0, "armed": 1, "stale": 2, "blocked": 3,
+             "passed": 4, "stopped": 5, "invalid": 6}
+    plans.sort(key=lambda p: (order.get(p["state"], 9), len(p["failed"]), -p["rr"]))
 
     ready = [p for p in plans if p["state"] == "ready"]
     armed = [p for p in plans if p["state"] == "armed"]
