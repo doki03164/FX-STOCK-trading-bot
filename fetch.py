@@ -114,7 +114,7 @@ def main():
     os.makedirs(C.DATA, exist_ok=True)
     force = "--force" in sys.argv
     mpath = os.path.join(C.DATA, "meta.json")
-    meta = json.load(open(mpath)) if os.path.exists(mpath) and not force else {}
+    meta = json.load(open(mpath, encoding="utf-8")) if os.path.exists(mpath) and not force else {}
 
     if "--update" in sys.argv:                 # incremental path, used by watch.py
         ok = 0
@@ -124,7 +124,7 @@ def main():
                 meta[sym].update(u)
                 ok += 1
             time.sleep(0.15)
-        json.dump(meta, open(mpath, "w"), indent=1)
+        json.dump(meta, open(mpath, "w", encoding="utf-8"), indent=1)
         newest = max((m.get("end", "") for m in meta.values()), default="?")
         print(f"updated {ok}/{len(C.SYMBOLS)} pairs, newest 1h bar {newest[:16]}")
         return 0 if ok else 1
@@ -159,7 +159,7 @@ def main():
         time.sleep(0.4)
 
     meta = {s: meta[s] for s in C.SYMBOLS if s in meta}     # drop pairs no longer listed
-    json.dump(meta, open(mpath, "w"), indent=1)
+    json.dump(meta, open(mpath, "w", encoding="utf-8"), indent=1)
     tot = {tf: sum(m["bars"][tf] for m in meta.values())
            for tf in ("1h", "4h", "1d", "1w", "1mo")}
     print(f"\n{ok}/{len(C.SYMBOLS)} pairs cached ({skipped} already present) into {C.DATA}")

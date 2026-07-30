@@ -30,7 +30,7 @@ def say(msg):
         STATE["log"] = (STATE["log"] + [line])[-60:]
 
 
-MARKETS = ["fx", "us"]
+MARKETS = ["fx", "us", "tw"]
 
 
 def run(script, *args, quiet=True):
@@ -55,7 +55,10 @@ def setup(markets):
     for m in markets:
         if not have_data(m):
             say(f"首次啟動：下載 {m} 歷史報價（約 10 分鐘，只做一次）…")
-            run("fetch_us.py" if m == "us" else "fetch.py", quiet=False)
+            if m == "fx":
+                run("fetch.py", quiet=False)
+            else:
+                run("fetch_us.py", "--market", m, quiet=False)
         if not os.path.exists(os.path.join(HERE, f"sweep_{m}.csv")):
             say(f"首次啟動：執行 {m} 參數掃描（約 15 分鐘，只做一次）…")
             run("sweep.py", "--market", m, quiet=False)
@@ -74,7 +77,7 @@ def scan(fetch=True):
         for m in MARKETS:
             with LOCK:
                 STATE["step"] = f"{m} 抓取報價"
-            if fetch:
+            if fetch and m == "fx":
                 run("fetch.py", "--update", "--market", m)
             with LOCK:
                 STATE["step"] = f"{m} 掃描 GATE 1–7"
@@ -129,8 +132,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         p = urllib.parse.urlparse(self.path).path
         if p in ("/", "/index.html", "/fx"):
             self.path = "/dashboard_fx.html"
-        elif p in ("/us", "/us.html"):
-            self.path = "/dashboard_us.html"
+        elif p.strip("/") in MARKETS:
+            self.path = f"/dashboard_{p.strip('/')}.html"
         elif p == "/api/status":
             with LOCK:
                 s = {k: STATE[k] for k in ("busy", "step", "last")}

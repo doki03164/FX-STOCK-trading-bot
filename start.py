@@ -1,8 +1,9 @@
 """一鍵啟動。
 
-    python start.py            外匯 + 美股，開啟儀表板
+    python start.py            外匯 + 美股 + 台股，開啟儀表板
     python start.py fx         只跑外匯
     python start.py us         只跑美股
+    python start.py tw         只跑台股
     python start.py --no-open  不自動開瀏覽器
 
 第一次啟動會自動補齊缺少的資料（下載報價、跑回測），之後只要幾秒。

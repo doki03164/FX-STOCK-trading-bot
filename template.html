@@ -423,7 +423,7 @@ const hideTip = () => tip.style.opacity = 0;
 
 /* ---------- header ---------- */
 $('#sub').innerHTML = `把手冊的 GATE 1–7 與 18 項進場前提條件寫成程式，在
-  <b>${D.universe.length} ${D.market === 'us' ? '檔美股' : '組外匯貨幣對'}</b>的 <b>1 小時、4 小時與日線</b>三種執行週期上重跑
+  <b>${D.universe.length} ${D.market === 'fx' ? '組外匯貨幣對' : (D.market === 'tw' ? '檔台股' : '檔美股')}</b>的 <b>1 小時、4 小時與日線</b>三種執行週期上重跑
   （共 ${((D.bars['1h'] + D.bars['4h'] + D.bars['1d']) / 1e6).toFixed(2)}M 根 K 棒），
   並用參數掃描檢驗每一個門檻值是否真的有效。`;
 $('#meta').textContent =
@@ -501,7 +501,7 @@ if (SERVED) {
 /* market switcher — only meaningful when app.py is serving both books */
 if (location.protocol.startsWith('http')) {
   const here = D.market || 'fx';
-  $('#mktnav').innerHTML = [['fx', '外匯', '/'], ['us', '美股', '/us']]
+  $('#mktnav').innerHTML = [['fx', '外匯', '/'], ['us', '美股', '/us'], ['tw', '台股', '/tw']]
     .map(([k, lab, href]) => `<a href="${href}" class="tb" style="text-decoration:none;
       ${k === here ? 'color:var(--acc);border-bottom-color:var(--acc)' : ''}">${lab}</a>`)
     .join('');
@@ -649,7 +649,7 @@ function renderLive() {
       <p>資料時間 <b style="color:var(--tx)">${P.as_of}</b>
         ${stale ? `<span class="dn">（已過 ${age.toFixed(0)} 小時，請重新執行 <code>python bot.py</code>）</span>`
                 : `<span class="mut">（${age.toFixed(1)} 小時前）</span>`} ·
-        掃描 ${P.scanned} 次（${D.universe.length} ${D.market === 'us' ? '檔股票' : '組貨幣對'} × ${P.tfs.length} 個週期） ·
+        掃描 ${P.scanned} 次（${D.universe.length} ${D.market === 'fx' ? '組貨幣對' : '檔股票'} × ${P.tfs.length} 個週期） ·
         帳戶 $${P.equity.toLocaleString()}，單筆風險 ${(P.account.risk_pct * 100).toFixed(0)}%
         ${SERVED ? `<br><span class="mut" id="live_at" style="font-family:var(--mono);font-size:12px">
           即時報價每 10 秒更新…</span>` : ''}</p>

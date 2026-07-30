@@ -84,7 +84,22 @@ LADDERS_US = {
     },
 }
 
-LADDERS_BY_MARKET = {"fx": LADDERS, "us": LADDERS_US}
+# Taiwan, selected from its own 39,600-run daily sweep the same way as the others.
+# Read the numbers before trusting them: only 28 of those runs were positive in both
+# halves — 0.1%, against 2.7% for US daily — and this one's t-stat is 1.09, not the
+# 4.28 the US book manages. Dealing cost is why: 證交稅 0.3% plus commission is 50bps
+# round trip, which costs 0.105R of every trade against 0.018R in the US. The edge
+# the gates find is roughly the size of the tax.
+LADDERS_TW = {
+    "1d": {
+        "tf": "1d", "min_swing": 3.0, "band_atr": 1.0,
+        "entry_mode": "limit", "sl_mode": "zone",
+        "min_conf": 3, "min_rr": 1.5, "sl_atr_mult": 1.5, "max_legs": 99,
+        "mtf": "daily+4h", "confirm": "any",
+    },
+}
+
+LADDERS_BY_MARKET = {"fx": LADDERS, "us": LADDERS_US, "tw": LADDERS_TW}
 
 
 def ladders_for(sw):
@@ -410,7 +425,7 @@ def main():
                     for a, b, t in zip(ok.is_exp, ok.oos_exp, ok.tf)][:3000],
     }
 
-    meta = json.load(open(os.path.join(C.DATA, "meta.json")))
+    meta = json.load(open(os.path.join(C.DATA, "meta.json"), encoding="utf-8"))
     any_m = next(iter(meta.values()))
     bars_total = {tf: int(sum(m["bars"][tf] for m in meta.values()))
                   for tf in C.ALL_TFS}

@@ -108,6 +108,84 @@ def us_universe():
     return {t: t for t in US_FALLBACK}
 
 
+# ---------------------------------------------------------------- TW universe
+# Taiwan dealing cost is the headline difference and it is brutal: 證交稅 0.3% on the
+# sell alone, plus 手續費 0.1425% each way (assume a 6折 online discount -> 0.0855%).
+# Round trip = 0.0855 x2 + 0.30 = 0.471%, call it 50bps with slippage. That is EIGHT
+# TIMES the US figure, and it is why a strategy that works on the S&P can still lose
+# money on the same setups in Taipei.
+TW_COMMISSION_BPS = 8.55 * 2      # 0.0855% each way, discounted online rate
+TW_TAX_BPS = 30.0                 # 證交稅 0.3%, sell side only
+TW_SLIPPAGE_BPS = 3.0             # chunky tick sizes
+TW_COST_BPS = TW_COMMISSION_BPS + TW_TAX_BPS + TW_SLIPPAGE_BPS
+
+TW_FALLBACK = {
+    "2330.TW": "台積電", "2317.TW": "鴻海", "2454.TW": "聯發科", "2308.TW": "台達電",
+    "2382.TW": "廣達", "2891.TW": "中信金", "2881.TW": "富邦金", "2412.TW": "中華電",
+    "1301.TW": "台塑", "1303.TW": "南亞", "2002.TW": "中鋼", "2303.TW": "聯電",
+    "3711.TW": "日月光投控", "2886.TW": "兆豐金", "2884.TW": "玉山金", "2357.TW": "華碩",
+    "3034.TW": "聯詠", "2379.TW": "瑞昱", "2603.TW": "長榮", "2609.TW": "陽明",
+    "2615.TW": "萬海", "1216.TW": "統一", "2207.TW": "和泰車", "2892.TW": "第一金",
+    "5880.TW": "合庫金", "2885.TW": "元大金", "2883.TW": "凱基金", "2887.TW": "台新金",
+    "6505.TW": "台塑化", "3008.TW": "大立光", "4938.TW": "和碩", "2377.TW": "微星",
+    "2376.TW": "技嘉", "3231.TW": "緯創", "2356.TW": "英業達", "2324.TW": "仁寶",
+    "2301.TW": "光寶科", "3443.TW": "創意", "5269.TW": "祥碩", "8046.TW": "南電",
+    "3037.TW": "欣興", "6669.TW": "緯穎", "2345.TW": "智邦", "3661.TW": "世芯-KY",
+    "2049.TW": "上銀", "1590.TW": "亞德客-KY", "1476.TW": "儒鴻", "2105.TW": "正新",
+    "2201.TW": "裕隆", "2618.TW": "長榮航", "2610.TW": "華航", "2912.TW": "統一超",
+    "5876.TW": "上海商銀", "2890.TW": "永豐金", "2880.TW": "華南金", "1101.TW": "台泥",
+    "1102.TW": "亞泥", "1326.TW": "台化", "2408.TW": "南亞科", "6239.TW": "力成",
+    "2337.TW": "旺宏", "2344.TW": "華邦電", "8069.TW": "元太", "6176.TW": "瑞儀",
+    "2385.TW": "群光", "1519.TW": "華城", "1513.TW": "中興電", "2371.TW": "大同",
+}
+
+MIN_TW_TURNOVER = 50_000_000      # NT$50m a day — below this the spread eats the edge
+
+
+def tw_fetch_universe():
+    """Listed TWSE names above a liquidity floor, from TWSE open data.
+
+    Screened on turnover because the strategy needs to actually get filled: a stock
+    trading NT$5m a day cannot absorb a position, and its spread would swamp an
+    edge measured in tenths of an R.
+    """
+    import json, urllib.request, re
+    url = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    rows = json.loads(urllib.request.urlopen(req, timeout=30).read())
+    uni = {}
+    for r in rows:
+        code, name = str(r.get("Code", "")), str(r.get("Name", "")).strip()
+        # 4-digit codes that do not start with 0: 00xx is ETFs, 5-6 digits are
+        # warrants and beneficiary certificates. We want ordinary shares only.
+        if not re.fullmatch(r"[1-9]\d{3}", code):
+            continue
+        try:
+            if float(str(r.get("TradeValue", "0")).replace(",", "")) < MIN_TW_TURNOVER:
+                continue
+        except ValueError:
+            continue
+        uni[f"{code}.TW"] = name or code
+    return uni
+
+
+@functools.lru_cache(maxsize=4)
+def tw_universe():
+    import json
+    base = os.path.join(HERE, "data", "tw")
+    for path, from_meta in ((os.path.join(base, "meta.json"), True),
+                            (os.path.join(base, "universe.json"), False)):
+        if not os.path.exists(path):
+            continue
+        try:
+            d = json.load(open(path, encoding="utf-8"))
+            if len(d) > 30:
+                return ({k: v.get("name", k) for k, v in d.items()} if from_meta else d)
+        except Exception:
+            pass
+    return dict(TW_FALLBACK)
+
+
 MARKETS = {
     "fx": {
         "name": "外匯", "label": "FX",
@@ -119,5 +197,11 @@ MARKETS = {
         "session": "09:30-16:00 ET", "tf_stack": {"1h": ("4h", "1d"),
                                                   "4h": ("1d", "1w"),
                                                   "1d": ("1w", "1mo")},
+    },
+    "tw": {
+        "name": "台股", "label": "TW Equities",
+        "session": "09:00-13:30 TPE", "tf_stack": {"1h": ("4h", "1d"),
+                                                   "4h": ("1d", "1w"),
+                                                   "1d": ("1w", "1mo")},
     },
 }

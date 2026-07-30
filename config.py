@@ -22,7 +22,8 @@ def set_market(m):
         raise ValueError(f"unknown market {m!r}; expected one of {list(M.MARKETS)}")
     MARKET = m
     DATA = os.path.join(HERE, "data", m)
-    UNIVERSE = M.FX_UNIVERSE if m == "fx" else M.us_universe()
+    UNIVERSE = (M.FX_UNIVERSE if m == "fx" else
+                M.tw_universe() if m == "tw" else M.us_universe())
     SYMBOLS = list(UNIVERSE)
     return m
 
@@ -114,7 +115,8 @@ def cost_px(sym, price=None):
     """
     if is_fx(sym):
         return cost_pips(sym) * pip_size(sym)
-    return float(price or 100.0) * M.US_COST_BPS / 1e4
+    bps = M.TW_COST_BPS if sym.endswith((".TW", ".TWO")) else M.US_COST_BPS
+    return float(price or 100.0) * bps / 1e4
 
 
 # Round-turn dealing cost in pips: raw spread + commission, sized for a prop-firm

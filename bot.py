@@ -200,7 +200,7 @@ def main():
     equity = C.ACCOUNT["capital"]
     stp = os.path.join(C.HERE, "state.json")
     if os.path.exists(stp):
-        equity = json.load(open(stp)).get("equity", equity)
+        equity = json.load(open(stp, encoding="utf-8")).get("equity", equity)
 
     # not every name has an intraday file (US intraday is capped at 730 days and a
     # few listings are younger), so fall back to the daily close for the quote

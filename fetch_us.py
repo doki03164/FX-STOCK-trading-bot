@@ -1,15 +1,21 @@
-"""Download the US equity universe.
+"""Download an equity universe — US (S&P 500) or TW (screened TWSE listings).
 
-Different shape of problem from FX: 500 tickers instead of 46, but Yahoo serves
-equities in batches, so the whole S&P 500 at ten years of daily bars downloads in
-about a minute. Hourly is still capped at 730 days — that cap is Yahoo's, not a
-setting, so the 4H ladder can only ever be tested over ~2.8 years no matter what
-the daily ladder gets.
+A different shape of problem from FX: hundreds of tickers instead of 46, but Yahoo
+serves equities in batches, so a whole index at fifteen years of daily bars arrives
+in about a minute. Hourly is still capped at 730 days — that cap is Yahoo's, not a
+setting, so the 4H ladder can only ever be tested over ~2.8 years however much
+history the daily ladder gets.
 
-    python fetch_us.py            # constituents + 15y daily + 730d hourly
-    python fetch_us.py --daily    # skip hourly (much faster, daily ladder only)
+    python fetch_us.py                     # US: constituents + 15y daily + 730d 1h
+    python fetch_us.py --market tw         # TW: same, from TWSE open data
+    python fetch_us.py --daily             # skip hourly (daily ladder only)
 """
-import os, sys, json, time, warnings
+import os
+import sys
+import json
+import time
+import warnings
+
 import pandas as pd
 import yfinance as yf
 
@@ -25,8 +31,23 @@ BATCH = 40
 
 
 def constituents():
-    """Current S&P 500 members, cached to disk so a later run needs no network."""
+    """The market's tradeable list, cached to disk so a later run needs no network."""
     path = os.path.join(C.DATA, "universe.json")
+
+    if C.MARKET == "tw":
+        try:
+            uni = M.tw_fetch_universe()
+            if len(uni) > 100:
+                os.makedirs(C.DATA, exist_ok=True)
+                json.dump(uni, open(path, "w", encoding="utf-8"), ensure_ascii=False)
+                print(f"TWSE listed commons after turnover screen: {len(uni)} (fetched)")
+                return uni
+        except Exception as e:
+            print(f"  ! TWSE fetch failed ({str(e)[:60]}), using built-in list")
+        uni = M.tw_universe()
+        print(f"TW universe: {len(uni)} tickers (cached/fallback)")
+        return uni
+
     try:
         d = pd.read_csv(SP500_CSV)
         col = "Symbol" if "Symbol" in d.columns else d.columns[0]
@@ -69,8 +90,8 @@ def grab(syms, period, interval):
                               auto_adjust=False, threads=True, group_by="ticker")
             got.update(_split(raw, chunk))
         except Exception as e:
-            print(f"  ! batch {i//BATCH+1}: {str(e)[:70]}")
-        print(f"    {interval} {min(i+BATCH, len(syms)):4d}/{len(syms)}  "
+            print(f"  ! batch {i // BATCH + 1}: {str(e)[:70]}")
+        print(f"    {interval} {min(i + BATCH, len(syms)):4d}/{len(syms)}  "
               f"got {len(got)}", end="\r", flush=True)
         time.sleep(0.4)
     print()
@@ -78,15 +99,16 @@ def grab(syms, period, interval):
 
 
 def main():
-    C.set_market("us")
+    a = sys.argv[1:]
+    C.set_market(a[a.index("--market") + 1] if "--market" in a else "us")
     os.makedirs(C.DATA, exist_ok=True)
     uni = constituents()
     syms = list(uni)
-    daily_only = "--daily" in sys.argv
+    daily_only = "--daily" in a
 
-    print(f"\ndaily (15y) for {len(syms)} tickers…")
+    print(f"\n[{C.MARKET}] daily 15y for {len(syms)} tickers")
     d1 = grab(syms, "15y", "1d")
-    print(f"hourly (730d)…" if not daily_only else "skipping hourly")
+    print("hourly 730d" if not daily_only else "skipping hourly")
     h1 = grab(syms, "730d", "1h") if not daily_only else {}
 
     meta, ok = {}, 0
@@ -111,7 +133,8 @@ def main():
                    "d_start": str(dd.index[0]), "d_end": str(dd.index[-1])}
         ok += 1
 
-    json.dump(meta, open(os.path.join(C.DATA, "meta.json"), "w"), indent=1)
+    json.dump(meta, open(os.path.join(C.DATA, "meta.json"), "w", encoding="utf-8"),
+              indent=1, ensure_ascii=False)
     tot = {tf: sum(m["bars"].get(tf, 0) for m in meta.values())
            for tf in ("1h", "4h", "1d", "1w", "1mo")}
     print(f"\n{ok}/{len(syms)} tickers cached into {C.DATA}")
