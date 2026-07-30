@@ -117,7 +117,34 @@ LADDERS_TW = {
     },
 }
 
-LADDERS_BY_MARKET = {"fx": LADDERS, "us": LADDERS_US, "tw": LADDERS_TW}
+# Commodities and metals: NO VALIDATED CONFIGURATION EXISTS.
+#
+# 20 instruments, 15 years, 316,800 backtests, and not one cell is positive in both
+# halves of the data. Best t-statistic across the entire grid is 0.14. Compare US
+# daily, where 1,086 cells pass and the best t-stat is 4.28.
+#
+# The config below is the least-bad daily cell by annual R. It exists so the live
+# scanner has something to run and the tab is not empty — it is NOT a strategy, and
+# the dashboard says so. Two plausible reasons it fails here: only 20 instruments
+# means far fewer independent samples than 500 shares, and CFD cost runs 4-45bps
+# depending on the contract (cocoa and orange juice are 40-45).
+LADDERS_CM = {
+    "1d": {
+        "tf": "1d", "min_swing": 2.0, "band_atr": 1.0,
+        "entry_mode": "limit", "sl_mode": "zone",
+        "tp_mode": "ext",
+        "min_conf": 3, "min_rr": 1.0,
+        "sl_atr_mult": 1.5, "max_legs": 2,
+        "mtf": "off", "confirm": "any", "side": "long",
+    },
+}
+
+LADDERS_BY_MARKET = {"fx": LADDERS, "us": LADDERS_US, "tw": LADDERS_TW,
+                     "cm": LADDERS_CM}
+
+# Markets where the sweep found nothing that survives the split. The dashboard shows
+# a warning instead of presenting the numbers as a result.
+UNVALIDATED = {"cm"}
 
 
 def ladders_for(sw):
@@ -465,6 +492,7 @@ def main():
     data = {
         "generated": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
         "market": C.MARKET, "market_name": M.MARKETS[C.MARKET]["name"],
+        "unvalidated": C.MARKET in UNVALIDATED,
         "window": {"start": any_m["start"][:10], "end": any_m["end"][:10],
                    "d_start": any_m["d_start"][:10], "split": ref["split"]},
         "bars": bars_total,
@@ -497,6 +525,17 @@ def main():
         data["events"] = rows[-60:][::-1]
 
     out = C.art("dashboard_data","json")
+    def clean(o):
+        """A zero-loss cell yields an infinite profit factor; JSON has no word for it."""
+        if isinstance(o, float):
+            return None if (o != o or o in (float("inf"), float("-inf"))) else o
+        if isinstance(o, dict):
+            return {k: clean(v) for k, v in o.items()}
+        if isinstance(o, (list, tuple)):
+            return [clean(v) for v in o]
+        return o
+
+    data = clean(data)
     json.dump(data, open(out, "w", encoding="utf-8"), allow_nan=False)
     print(f"wrote {out}  ({os.path.getsize(out)/1024:.0f} KB)")
 

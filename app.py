@@ -30,7 +30,7 @@ def say(msg):
         STATE["log"] = (STATE["log"] + [line])[-60:]
 
 
-MARKETS = ["fx", "us", "tw"]
+MARKETS = ["fx", "us", "tw", "cm"]
 
 
 def run(script, *args, quiet=True):
@@ -77,8 +77,13 @@ def scan(fetch=True):
         for m in MARKETS:
             with LOCK:
                 STATE["step"] = f"{m} 抓取報價"
-            if fetch and m == "fx":
-                run("fetch.py", "--update", "--market", m)
+            if fetch:
+                # every market needs refreshing, not just FX. Skipping this for
+                # equities is what left a 4H plan quoting a price from days ago.
+                if m == "fx":
+                    run("fetch.py", "--update", "--market", m)
+                else:
+                    run("fetch_us.py", "--update", "--market", m)
             with LOCK:
                 STATE["step"] = f"{m} 掃描 GATE 1–7"
             run("bot.py", "--nofetch", "--market", m)
@@ -106,7 +111,7 @@ def watcher():
                 say("K 棒收線，自動重新掃描")
                 scan(fetch=True)
             else:
-                say("外匯休市，略過")
+                say("市場休市，略過")
         except Exception as e:
             say(f"! 監控例外 {type(e).__name__}: {str(e)[:90]}")
             time.sleep(60)

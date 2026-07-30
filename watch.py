@@ -21,6 +21,8 @@ import os, sys, json, time, subprocess, datetime as dt
 
 import config as C
 
+MARKETS = ["fx"]   # watch.py stays FX-only; app.py drives the multi-market loop
+
 HERE = C.HERE
 EVENTS = os.path.join(HERE, "events.jsonl")
 PLAN = os.path.join(HERE, "plan.json")
@@ -122,8 +124,10 @@ def cycle(report=True):
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     old, _ = snapshot()
 
-    if run(["fetch.py", "--update"]):
-        print(f"[{stamp}] ! 抓取失敗，沿用既有資料")
+    for mk in MARKETS:
+        upd = ["fetch.py", "--update", "--market", mk] if mk == "fx" else               ["fetch_us.py", "--update", "--market", mk]
+        if run(upd):
+            print(f"[{stamp}] ! {mk} 抓取失敗，沿用既有資料")
     if run(["bot.py", "--nofetch"]):
         print(f"[{stamp}] ! 掃描失敗")
         return

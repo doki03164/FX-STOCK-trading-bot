@@ -1,0 +1,108 @@
+80 structural x up to 7200 filter = 576000 runs
+
+[ 1/80] tf=1d  market        sl=wick  ms=2.0 ba=0.75  cands=  465  split=2020-11-28  runs=7200  (10s)
+[ 2/80] tf=1d  market        sl=wick  ms=2.0 ba=0.75  cands=  486  split=2020-11-25  runs=7200  (20s)
+[ 3/80] tf=1d  market        sl=zone  ms=2.0 ba=0.75  cands=  465  split=2020-11-28  runs=7200  (29s)
+[ 4/80] tf=1d  market        sl=zone  ms=2.0 ba=0.75  cands=  486  split=2020-11-25  runs=7200  (40s)
+[ 5/80] tf=1d  limit         sl=zone  ms=2.0 ba=0.75  cands=  601  split=2020-06-15  runs=1800  (43s)
+[ 6/80] tf=1d  limit         sl=zone  ms=2.0 ba=0.75  cands=  601  split=2020-06-15  runs=1800  (47s)
+[ 7/80] tf=1d  limit_confirm sl=wick  ms=2.0 ba=0.75  cands=  601  split=2020-06-15  runs=1800  (50s)
+[ 8/80] tf=1d  limit_confirm sl=wick  ms=2.0 ba=0.75  cands=  601  split=2020-06-15  runs=1800  (53s)
+[ 9/80] tf=1d  limit_confirm sl=zone  ms=2.0 ba=0.75  cands=  601  split=2020-06-15  runs=1800  (57s)
+[10/80] tf=1d  limit_confirm sl=zone  ms=2.0 ba=0.75  cands=  601  split=2020-06-15  runs=1800  (60s)
+[11/80] tf=1d  market        sl=wick  ms=2.0 ba=1.0  cands=  448  split=2020-10-10  runs=7200  (69s)
+[12/80] tf=1d  market        sl=wick  ms=2.0 ba=1.0  cands=  461  split=2020-09-18  runs=7200  (80s)
+[13/80] tf=1d  market        sl=zone  ms=2.0 ba=1.0  cands=  448  split=2020-10-10  runs=7200  (90s)
+[14/80] tf=1d  market        sl=zone  ms=2.0 ba=1.0  cands=  461  split=2020-09-18  runs=7200  (101s)
+[15/80] tf=1d  limit         sl=zone  ms=2.0 ba=1.0  cands=  545  split=2020-06-16  runs=1800  (105s)
+[16/80] tf=1d  limit         sl=zone  ms=2.0 ba=1.0  cands=  545  split=2020-06-16  runs=1800  (108s)
+[17/80] tf=1d  limit_confirm sl=wick  ms=2.0 ba=1.0  cands=  545  split=2020-06-16  runs=1800  (112s)
+[18/80] tf=1d  limit_confirm sl=wick  ms=2.0 ba=1.0  cands=  545  split=2020-06-16  runs=1800  (116s)
+[19/80] tf=1d  limit_confirm sl=zone  ms=2.0 ba=1.0  cands=  545  split=2020-06-16  runs=1800  (119s)
+[20/80] tf=1d  limit_confirm sl=zone  ms=2.0 ba=1.0  cands=  545  split=2020-06-16  runs=1800  (123s)
+[21/80] tf=1d  market        sl=wick  ms=3.0 ba=0.75  cands=  487  split=2020-09-23  runs=7200  (133s)
+[22/80] tf=1d  market        sl=wick  ms=3.0 ba=0.75  cands=  500  split=2020-09-26  runs=7200  (143s)
+[23/80] tf=1d  market        sl=zone  ms=3.0 ba=0.75  cands=  488  split=2020-09-21  runs=7200  (153s)
+[24/80] tf=1d  market        sl=zone  ms=3.0 ba=0.75  cands=  501  split=2020-09-24  runs=7200  (164s)
+[25/80] tf=1d  limit         sl=zone  ms=3.0 ba=0.75  cands=  618  split=2020-06-15  runs=1800  (168s)
+[26/80] tf=1d  limit         sl=zone  ms=3.0 ba=0.75  cands=  618  split=2020-06-15  runs=1800  (171s)
+[27/80] tf=1d  limit_confirm sl=wick  ms=3.0 ba=0.75  cands=  618  split=2020-06-15  runs=1800  (174s)
+[28/80] tf=1d  limit_confirm sl=wick  ms=3.0 ba=0.75  cands=  618  split=2020-06-15  runs=1800  (177s)
+[29/80] tf=1d  limit_confirm sl=zone  ms=3.0 ba=0.75  cands=  618  split=2020-06-15  runs=1800  (180s)
+[30/80] tf=1d  limit_confirm sl=zone  ms=3.0 ba=0.75  cands=  618  split=2020-06-15  runs=1800  (185s)
+[31/80] tf=1d  market        sl=wick  ms=3.0 ba=1.0  cands=  482  split=2020-08-23  runs=7200  (204s)
+[32/80] tf=1d  market        sl=wick  ms=3.0 ba=1.0  cands=  490  split=2020-08-14  runs=7200  (225s)
+[33/80] tf=1d  market        sl=zone  ms=3.0 ba=1.0  cands=  483  split=2020-08-22  runs=7200  (247s)
+[34/80] tf=1d  market        sl=zone  ms=3.0 ba=1.0  cands=  491  split=2020-07-30  runs=7200  (268s)
+[35/80] tf=1d  limit         sl=zone  ms=3.0 ba=1.0  cands=  564  split=2020-06-14  runs=1800  (271s)
+[36/80] tf=1d  limit         sl=zone  ms=3.0 ba=1.0  cands=  564  split=2020-06-14  runs=1800  (275s)
+[37/80] tf=1d  limit_confirm sl=wick  ms=3.0 ba=1.0  cands=  564  split=2020-06-14  runs=1800  (278s)
+[38/80] tf=1d  limit_confirm sl=wick  ms=3.0 ba=1.0  cands=  564  split=2020-06-14  runs=1800  (282s)
+[39/80] tf=1d  limit_confirm sl=zone  ms=3.0 ba=1.0  cands=  564  split=2020-06-14  runs=1800  (285s)
+[40/80] tf=1d  limit_confirm sl=zone  ms=3.0 ba=1.0  cands=  564  split=2020-06-14  runs=1800  (288s)
+[41/80] tf=4h  market        sl=wick  ms=2.0 ba=0.75  cands=  312  split=2025-08-06  runs=7200  (298s)
+[42/80] tf=4h  market        sl=wick  ms=2.0 ba=0.75  cands=  321  split=2025-08-05  runs=7200  (307s)
+[43/80] tf=4h  market        sl=zone  ms=2.0 ba=0.75  cands=  321  split=2025-08-05  runs=7200  (317s)
+[44/80] tf=4h  market        sl=zone  ms=2.0 ba=0.75  cands=  330  split=2025-08-05  runs=7200  (328s)
+[45/80] tf=4h  limit         sl=zone  ms=2.0 ba=0.75  cands=  393  split=2025-08-21  runs=1800  (330s)
+[46/80] tf=4h  limit         sl=zone  ms=2.0 ba=0.75  cands=  393  split=2025-08-21  runs=1800  (333s)
+[47/80] tf=4h  limit_confirm sl=wick  ms=2.0 ba=0.75  cands=  393  split=2025-08-21  runs=1800  (336s)
+[48/80] tf=4h  limit_confirm sl=wick  ms=2.0 ba=0.75  cands=  393  split=2025-08-21  runs=1800  (339s)
+[49/80] tf=4h  limit_confirm sl=zone  ms=2.0 ba=0.75  cands=  393  split=2025-08-21  runs=1800  (342s)
+[50/80] tf=4h  limit_confirm sl=zone  ms=2.0 ba=0.75  cands=  393  split=2025-08-21  runs=1800  (345s)
+[51/80] tf=4h  market        sl=wick  ms=2.0 ba=1.0  cands=  289  split=2025-08-05  runs=7200  (354s)
+[52/80] tf=4h  market        sl=wick  ms=2.0 ba=1.0  cands=  295  split=2025-08-05  runs=7200  (364s)
+[53/80] tf=4h  market        sl=zone  ms=2.0 ba=1.0  cands=  297  split=2025-08-05  runs=7200  (373s)
+[54/80] tf=4h  market        sl=zone  ms=2.0 ba=1.0  cands=  303  split=2025-08-06  runs=7200  (384s)
+[55/80] tf=4h  limit         sl=zone  ms=2.0 ba=1.0  cands=  340  split=2025-08-12  runs=1800  (387s)
+[56/80] tf=4h  limit         sl=zone  ms=2.0 ba=1.0  cands=  340  split=2025-08-12  runs=1800  (390s)
+[57/80] tf=4h  limit_confirm sl=wick  ms=2.0 ba=1.0  cands=  340  split=2025-08-12  runs=1800  (393s)
+[58/80] tf=4h  limit_confirm sl=wick  ms=2.0 ba=1.0  cands=  340  split=2025-08-12  runs=1800  (396s)
+[59/80] tf=4h  limit_confirm sl=zone  ms=2.0 ba=1.0  cands=  340  split=2025-08-12  runs=1800  (399s)
+[60/80] tf=4h  limit_confirm sl=zone  ms=2.0 ba=1.0  cands=  340  split=2025-08-12  runs=1800  (403s)
+[61/80] tf=4h  market        sl=wick  ms=3.0 ba=0.75  cands=  366  split=2025-09-16  runs=7200  (411s)
+[62/80] tf=4h  market        sl=wick  ms=3.0 ba=0.75  cands=  373  split=2025-09-17  runs=7200  (421s)
+[63/80] tf=4h  market        sl=zone  ms=3.0 ba=0.75  cands=  377  split=2025-09-06  runs=7200  (431s)
+[64/80] tf=4h  market        sl=zone  ms=3.0 ba=0.75  cands=  384  split=2025-09-11  runs=7200  (442s)
+[65/80] tf=4h  limit         sl=zone  ms=3.0 ba=0.75  cands=  438  split=2025-10-09  runs=1800  (445s)
+[66/80] tf=4h  limit         sl=zone  ms=3.0 ba=0.75  cands=  438  split=2025-10-09  runs=1800  (448s)
+[67/80] tf=4h  limit_confirm sl=wick  ms=3.0 ba=0.75  cands=  438  split=2025-10-09  runs=1800  (451s)
+[68/80] tf=4h  limit_confirm sl=wick  ms=3.0 ba=0.75  cands=  438  split=2025-10-09  runs=1800  (454s)
+[69/80] tf=4h  limit_confirm sl=zone  ms=3.0 ba=0.75  cands=  438  split=2025-10-09  runs=1800  (457s)
+[70/80] tf=4h  limit_confirm sl=zone  ms=3.0 ba=0.75  cands=  438  split=2025-10-09  runs=1800  (460s)
+[71/80] tf=4h  market        sl=wick  ms=3.0 ba=1.0  cands=  342  split=2025-09-28  runs=7200  (468s)
+[72/80] tf=4h  market        sl=wick  ms=3.0 ba=1.0  cands=  348  split=2025-10-02  runs=7200  (478s)
+[73/80] tf=4h  market        sl=zone  ms=3.0 ba=1.0  cands=  353  split=2025-09-21  runs=7200  (487s)
+[74/80] tf=4h  market        sl=zone  ms=3.0 ba=1.0  cands=  359  split=2025-09-23  runs=7200  (498s)
+[75/80] tf=4h  limit         sl=zone  ms=3.0 ba=1.0  cands=  396  split=2025-10-14  runs=1800  (501s)
+[76/80] tf=4h  limit         sl=zone  ms=3.0 ba=1.0  cands=  396  split=2025-10-14  runs=1800  (504s)
+[77/80] tf=4h  limit_confirm sl=wick  ms=3.0 ba=1.0  cands=  396  split=2025-10-14  runs=1800  (507s)
+[78/80] tf=4h  limit_confirm sl=wick  ms=3.0 ba=1.0  cands=  396  split=2025-10-14  runs=1800  (510s)
+[79/80] tf=4h  limit_confirm sl=zone  ms=3.0 ba=1.0  cands=  396  split=2025-10-14  runs=1800  (513s)
+[80/80] tf=4h  limit_confirm sl=zone  ms=3.0 ba=1.0  cands=  396  split=2025-10-14  runs=1800  (516s)
+
+316800 runs -> sweep.csv   (519s)
+
+mean full-sample expectancy by execution timeframe:
+      runs    exp    oos  trades
+tf                              
+1d  158400  0.033 -0.037    6.69
+4h  158400 -0.118 -0.100    5.10
+
+top 15 by IN-SAMPLE expectancy, with their OOS result (4526 eligible):
+tf    entry_mode sl_mode  min_swing  band_atr  min_conf  min_rr  sl_atr_mult  max_legs mtf confirm  trades  expectancy  win_rate  profit_factor  tstat  is_exp  oos_trades  oos_exp
+4h        market    zone      3.000     1.000         4   1.000        1.000        99 off     any      76       0.068     0.368          1.098  0.355   0.267          25   -0.339
+4h        market    zone      3.000     1.000         3   1.000        1.000        99 off     any      90       0.075     0.378          1.107  0.421   0.221          32   -0.189
+1d         limit    zone      2.000     0.750         3   1.500        1.500         3 off     any      84       0.067     0.357          1.099  0.397   0.077          33    0.051
+1d limit_confirm    zone      3.000     1.000         3   1.000        2.000         3 off     any      97      -0.014     0.340          0.939 -0.195   0.069          47   -0.103
+1d limit_confirm    wick      3.000     1.000         3   1.000        2.000         3 off     any      97      -0.014     0.340          0.939 -0.195   0.069          47   -0.103
+1d limit_confirm    zone      3.000     1.000         4   1.000        2.000        99 off     any      90       0.003     0.333          1.014  0.041   0.067          36   -0.094
+1d limit_confirm    wick      3.000     1.000         4   1.000        2.000        99 off     any      90       0.003     0.333          1.014  0.041   0.067          36   -0.094
+1d limit_confirm    zone      3.000     1.000         4   1.000        1.500         3 off     any      89      -0.009     0.303          0.957 -0.128   0.059          37   -0.104
+1d limit_confirm    wick      3.000     1.000         4   1.000        1.500         3 off     any      89      -0.009     0.303          0.957 -0.128   0.059          37   -0.104
+1d limit_confirm    wick      3.000     1.000         3   1.000        2.000        99 off     any     112      -0.027     0.330          0.886 -0.406   0.059          55   -0.115
+1d limit_confirm    zone      3.000     1.000         3   1.000        2.000        99 off     any     112      -0.027     0.330          0.886 -0.406   0.059          55   -0.115
+1d limit_confirm    wick      3.000     1.000         3   1.000        1.500         3 off     any     104      -0.018     0.327          0.918 -0.272   0.059          51   -0.098
+1d limit_confirm    zone      3.000     1.000         3   1.000        1.500         3 off     any     104      -0.018     0.327          0.918 -0.272   0.059          51   -0.098
+1d limit_confirm    wick      3.000     1.000         4   1.000        1.500        99 off     any      96      -0.005     0.312          0.974 -0.079   0.057          39   -0.095
+1d limit_confirm    zone      3.000     1.000         4   1.000        1.500        99 off     any      96      -0.005     0.312          0.974 -0.079   0.057          39   -0.095

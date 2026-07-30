@@ -117,6 +117,20 @@ def restate(plan, price, age=0.0):
     if age > STALE_S and state == "ready":
         state, why = "stale", f"報價已 {age/60:.0f} 分鐘未更新，不足以判斷進場"
 
+    # A plan is derived from closed bars, so once the NEXT bar has closed the zone,
+    # the stop and the target may all have moved and this ticket is a historical
+    # artefact. Re-pricing cannot detect that — only a rescan can — so say so.
+    nb = plan.get("next_bar")
+    if nb and state in ("ready", "armed"):
+        try:
+            import pandas as _pd
+            if _pd.Timestamp(nb) < _pd.Timestamp.utcnow().tz_localize(None):
+                state = "expired"
+                why = (f"{nb} 起已有新的 K 棒收線，這張計畫是舊的 —— "
+                       f"按「重新掃描」重新推導")
+        except Exception:
+            pass
+
     gap = (price - plan["entry"]) * dr
     return {
         "state": state, "why": why,

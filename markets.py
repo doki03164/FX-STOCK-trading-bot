@@ -200,6 +200,47 @@ def tw_universe():
     return dict(TW_FALLBACK)
 
 
+# ---------------------------------------------------------------- CM universe
+# Commodity and metal CFDs, as listed on Bitget's TradFi board. All are Yahoo futures
+# front months except the four gold/silver crosses, which Yahoo does not carry and are
+# DERIVED — XAU/EUR is literally XAU/USD divided by EUR/USD, which is how a broker
+# prices it too.
+CM_DIRECT = {
+    "GC=F": "Gold (XAU/USD)", "SI=F": "Silver (XAG/USD)",
+    "PL=F": "Platinum/USD", "PA=F": "Palladium/USD", "HG=F": "Copper",
+    "CL=F": "WTI Crude Oil", "BZ=F": "Brent Crude Oil",
+    "NG=F": "Natural Gas", "RB=F": "Gasoline",
+    "ZW=F": "US Wheat (SRW)", "ZS=F": "Soybean", "CT=F": "Cotton",
+    "KC=F": "Arabica Coffee", "SB=F": "Sugar", "CC=F": "US Cocoa",
+    "OJ=F": "Orange Juice",
+}
+
+# synthetic = numerator / denominator, both fetched from their own market
+CM_DERIVED = {
+    "XAUEUR": ("Gold/EUR", "GC=F", "EURUSD=X", "div"),
+    "XAUJPY": ("Gold/JPY", "GC=F", "USDJPY=X", "mul"),
+    "XAUAUD": ("Gold/AUD", "GC=F", "AUDUSD=X", "div"),
+    "XAGAUD": ("Silver/AUD", "SI=F", "AUDUSD=X", "div"),
+}
+
+CM_UNIVERSE = {**CM_DIRECT, **{k: v[0] for k, v in CM_DERIVED.items()}}
+
+# CFD round trip in basis points of notional. Metals and oil are tight; the softs are
+# not, and a 40bp round trip on cocoa is the difference between an edge and a fee.
+CM_COST_BPS = {
+    "GC=F": 4.0, "SI=F": 9.0, "PL=F": 16.0, "PA=F": 22.0, "HG=F": 12.0,
+    "CL=F": 6.0, "BZ=F": 7.0, "NG=F": 18.0, "RB=F": 16.0,
+    "ZW=F": 20.0, "ZS=F": 16.0, "CT=F": 22.0, "KC=F": 28.0,
+    "SB=F": 24.0, "CC=F": 40.0, "OJ=F": 45.0,
+    "XAUEUR": 8.0, "XAUJPY": 8.0, "XAUAUD": 10.0, "XAGAUD": 16.0,
+}
+CM_DEFAULT_BPS = 20.0
+
+
+def cm_universe():
+    return dict(CM_UNIVERSE)
+
+
 MARKETS = {
     "fx": {
         "name": "外匯", "label": "FX",
@@ -211,6 +252,11 @@ MARKETS = {
         "session": "09:30-16:00 ET", "tf_stack": {"1h": ("4h", "1d"),
                                                   "4h": ("1d", "1w"),
                                                   "1d": ("1w", "1mo")},
+    },
+    "cm": {
+        "name": "商品金屬", "label": "Commodities & Metals",
+        "session": "近 24/5", "tf_stack": {"1h": ("4h", "1d"), "4h": ("1d", "1w"),
+                                          "1d": ("1w", "1mo")},
     },
     "tw": {
         "name": "台股", "label": "TW Equities",

@@ -34,6 +34,14 @@ def constituents():
     """The market's tradeable list, cached to disk so a later run needs no network."""
     path = os.path.join(C.DATA, "universe.json")
 
+    if C.MARKET == "cm":
+        uni = M.cm_universe()
+        os.makedirs(C.DATA, exist_ok=True)
+        json.dump(uni, open(path, "w", encoding="utf-8"), ensure_ascii=False)
+        print(f"Commodities & metals: {len(uni)} instruments "
+              f"({len(M.CM_DIRECT)} direct + {len(M.CM_DERIVED)} derived)")
+        return uni
+
     if C.MARKET == "tw":
         try:
             uni = M.tw_fetch_universe()
@@ -98,10 +106,100 @@ def grab(syms, period, interval):
     return got
 
 
+def derive(uni):
+    """Build the synthetic gold/silver crosses Yahoo does not carry.
+
+    XAU/EUR is XAU/USD divided by EUR/USD — the same arithmetic a broker uses. The
+    numerator comes from this market, the denominator from the FX book, joined as-of
+    so a missing FX bar never invents a price.
+    """
+    import loader
+    made = 0
+    for sym, (name, num, den, op) in M.CM_DERIVED.items():
+        if sym not in uni:
+            continue
+        try:
+            a = loader.bars(num, "1d", "cm").set_index("date")
+            C.set_market("fx"); b = loader.bars(den, "1d", "fx").set_index("date")
+            C.set_market("cm")
+        except FileNotFoundError:
+            print(f"  ! {sym}: need {num} and {den} first")
+            continue
+        j = a.join(b, how="inner", rsuffix="_d").dropna()
+        if len(j) < 500:
+            continue
+        f = (1.0 / j.close_d) if op == "div" else j.close_d
+        d = pd.DataFrame({"open": j.open * f, "high": j.high * f,
+                          "low": j.low * f, "close": j.close * f}, index=j.index)
+        d = d.assign(high=d[["high", "low"]].max(axis=1),
+                     low=d[["high", "low"]].min(axis=1))
+        _write(d, "1d", sym)
+        _write(resample(d, "W-MON"), "1w", sym)
+        _write(resample(d, "MS"), "1mo", sym)
+        made += 1
+    print(f"  derived {made} synthetic crosses")
+    return made
+
+
+def update():
+    """Batch incremental refresh — the reason live equity/commodity plans went stale.
+
+    fetch.py's per-symbol update() would take an hour on 500 names, so app.py used to
+    skip non-FX markets entirely and their bars never moved after the first download.
+    A 4H plan built on week-old bars is worse than no plan. This pulls the recent tail
+    for the whole universe in batches and re-derives the higher frames.
+    """
+    uni = C.UNIVERSE
+    syms = [s for s in uni if s not in M.CM_DERIVED]
+    print(f"[{C.MARKET}] incremental update, {len(syms)} symbols")
+    d1 = grab(syms, "3mo", "1d")
+    h1 = grab(syms, "7d", "1h")
+
+    mpath = os.path.join(C.DATA, "meta.json")
+    meta = json.load(open(mpath, encoding="utf-8")) if os.path.exists(mpath) else {}
+    ok = 0
+    for s in syms:
+        p1 = os.path.join(C.DATA, "1d", s.replace("=", "_") + ".csv")
+        if not os.path.exists(p1) or s not in d1:
+            continue
+
+        def load(p):
+            d = pd.read_csv(p, parse_dates=["date"]).set_index("date")
+            d.index = pd.to_datetime(d.index, utc=True)
+            return d
+
+        dd = load(p1)
+        new = _clean(d1[s])
+        dd = pd.concat([dd, new])
+        dd = dd[~dd.index.duplicated(keep="last")].sort_index()
+        n = {"1d": _write(dd, "1d", s),
+             "1w": _write(resample(dd, "W-MON"), "1w", s),
+             "1mo": _write(resample(dd, "MS"), "1mo", s)}
+        ph = os.path.join(C.DATA, "1h", s.replace("=", "_") + ".csv")
+        if s in h1 and os.path.exists(ph):
+            hh = pd.concat([load(ph), _clean(h1[s])])
+            hh = hh[~hh.index.duplicated(keep="last")].sort_index()
+            n["1h"] = _write(hh, "1h", s)
+            n["4h"] = _write(resample(hh, "4h"), "4h", s)
+        if s in meta:
+            meta[s]["bars"] = {**meta[s].get("bars", {}), **n}
+            meta[s]["end"] = str(dd.index[-1])
+            meta[s]["d_end"] = str(dd.index[-1])
+        ok += 1
+    if M.CM_DERIVED and C.MARKET == "cm":
+        derive(uni)
+    json.dump(meta, open(mpath, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+    newest = max((m.get("d_end", "") for m in meta.values()), default="?")
+    print(f"updated {ok}/{len(syms)}, newest daily bar {newest[:10]}")
+    return 0 if ok else 1
+
+
 def main():
     a = sys.argv[1:]
     C.set_market(a[a.index("--market") + 1] if "--market" in a else "us")
     os.makedirs(C.DATA, exist_ok=True)
+    if "--update" in a:
+        return update()
     uni = constituents()
     syms = list(uni)
     daily_only = "--daily" in a
@@ -139,6 +237,16 @@ def main():
            for tf in ("1h", "4h", "1d", "1w", "1mo")}
     print(f"\n{ok}/{len(syms)} tickers cached into {C.DATA}")
     print("  total bars: " + "  ".join(f"{k}={v:,}" for k, v in tot.items()))
+    if C.MARKET == "cm":
+        derive(uni)
+        for sym, (name, *_ ) in M.CM_DERIVED.items():
+            p = os.path.join(C.DATA, "1d", sym + ".csv")
+            if os.path.exists(p):
+                meta[sym] = {"name": name, "bars": {"1d": sum(1 for _ in open(p)) - 1,
+                             "1h": 0, "4h": 0, "1w": 0, "1mo": 0},
+                             "start": "", "end": "", "d_start": "", "d_end": ""}
+        json.dump(meta, open(os.path.join(C.DATA, "meta.json"), "w", encoding="utf-8"),
+                  indent=1, ensure_ascii=False)
     if meta:
         any_m = next(iter(meta.values()))
         print(f"  daily history from {any_m['d_start'][:10]}")

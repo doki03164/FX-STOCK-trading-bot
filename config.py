@@ -23,7 +23,8 @@ def set_market(m):
     MARKET = m
     DATA = os.path.join(HERE, "data", m)
     UNIVERSE = (M.FX_UNIVERSE if m == "fx" else
-                M.tw_universe() if m == "tw" else M.us_universe())
+                M.tw_universe() if m == "tw" else
+                M.cm_universe() if m == "cm" else M.us_universe())
     SYMBOLS = list(UNIVERSE)
     return m
 
@@ -97,6 +98,7 @@ def pair(sym):
 
 
 def is_fx(sym):
+    """A currency pair — decides pip semantics, not which market it belongs to."""
     return sym.endswith("=X")
 
 
@@ -115,7 +117,14 @@ def cost_px(sym, price=None):
     """
     if is_fx(sym):
         return cost_pips(sym) * pip_size(sym)
-    bps = M.TW_COST_BPS if sym.endswith((".TW", ".TWO")) else M.US_COST_BPS
+    if sym in M.CM_COST_BPS:
+        bps = M.CM_COST_BPS[sym]
+    elif sym.endswith("=F") or sym in M.CM_UNIVERSE:
+        bps = M.CM_DEFAULT_BPS
+    elif sym.endswith((".TW", ".TWO")):
+        bps = M.TW_COST_BPS
+    else:
+        bps = M.US_COST_BPS
     return float(price or 100.0) * bps / 1e4
 
 
