@@ -75,8 +75,13 @@ def constituents():
     return uni
 
 
-def _split(raw, syms):
-    """yfinance group_by='ticker' hands back a MultiIndex; peel one frame per name."""
+def _split(raw, syms, min_rows=200):
+    """yfinance group_by='ticker' hands back a MultiIndex; peel one frame per name.
+
+    `min_rows` guards against a half-empty first download. It must be small on an
+    incremental top-up — a 3-month daily pull is ~60 rows, and a 200-row floor threw
+    every symbol away while still reporting success.
+    """
     out = {}
     for s in syms:
         try:
@@ -84,19 +89,19 @@ def _split(raw, syms):
         except KeyError:
             continue
         d = d.dropna(how="all")
-        if len(d) > 200:
+        if len(d) >= min_rows:
             out[s] = d
     return out
 
 
-def grab(syms, period, interval):
+def grab(syms, period, interval, min_rows=200):
     got = {}
     for i in range(0, len(syms), BATCH):
         chunk = syms[i:i + BATCH]
         try:
             raw = yf.download(chunk, period=period, interval=interval, progress=False,
                               auto_adjust=False, threads=True, group_by="ticker")
-            got.update(_split(raw, chunk))
+            got.update(_split(raw, chunk, min_rows))
         except Exception as e:
             print(f"  ! batch {i // BATCH + 1}: {str(e)[:70]}")
         print(f"    {interval} {min(i + BATCH, len(syms)):4d}/{len(syms)}  "
@@ -152,8 +157,8 @@ def update():
     uni = C.UNIVERSE
     syms = [s for s in uni if s not in M.CM_DERIVED]
     print(f"[{C.MARKET}] incremental update, {len(syms)} symbols")
-    d1 = grab(syms, "3mo", "1d")
-    h1 = grab(syms, "7d", "1h")
+    d1 = grab(syms, "3mo", "1d", min_rows=5)
+    h1 = grab(syms, "7d", "1h", min_rows=5)
 
     mpath = os.path.join(C.DATA, "meta.json")
     meta = json.load(open(mpath, encoding="utf-8")) if os.path.exists(mpath) else {}
@@ -191,7 +196,7 @@ def update():
     json.dump(meta, open(mpath, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     newest = max((m.get("d_end", "") for m in meta.values()), default="?")
     print(f"updated {ok}/{len(syms)}, newest daily bar {newest[:10]}")
-    return 0 if ok else 1
+    return 0 if ok >= max(1, len(syms) * 0.5) else 1
 
 
 def main():
@@ -201,7 +206,9 @@ def main():
     if "--update" in a:
         return update()
     uni = constituents()
-    syms = list(uni)
+    # the derived crosses are computed from other series, not downloaded; asking
+    # Yahoo for XAUEUR just earns four 404s and a scary-looking log
+    syms = [x for x in uni if x not in M.CM_DERIVED]
     daily_only = "--daily" in a
 
     print(f"\n[{C.MARKET}] daily 15y for {len(syms)} tickers")
@@ -250,7 +257,9 @@ def main():
     if meta:
         any_m = next(iter(meta.values()))
         print(f"  daily history from {any_m['d_start'][:10]}")
-    return 0 if ok > 50 else 1
+    # proportional, not absolute: the CM book is 20 instruments and would
+    # never clear a hard-coded 50, which made app.py report a phantom failure
+    return 0 if ok >= max(5, len(syms) * 0.6) else 1
 
 
 if __name__ == "__main__":
