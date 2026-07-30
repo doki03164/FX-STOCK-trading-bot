@@ -1,0 +1,37 @@
+10 structural x up to 7200 filter = 72000 runs
+
+[ 1/10] tf=1d  market        sl=wick  ms=3.0 ba=1.0  cands=12196  split=2021-10-20  runs=7200  (45s)
+[ 2/10] tf=1d  market        sl=wick  ms=3.0 ba=1.0  cands=12527  split=2021-10-18  runs=7200  (94s)
+[ 3/10] tf=1d  market        sl=zone  ms=3.0 ba=1.0  cands=12199  split=2021-10-19  runs=7200  (154s)
+[ 4/10] tf=1d  market        sl=zone  ms=3.0 ba=1.0  cands=12530  split=2021-10-17  runs=7200  (267s)
+[ 5/10] tf=1d  limit         sl=zone  ms=3.0 ba=1.0  cands=14159  split=2021-09-30  runs=1800  (351s)
+[ 6/10] tf=1d  limit         sl=zone  ms=3.0 ba=1.0  cands=14159  split=2021-09-30  runs=1800  (443s)
+[ 7/10] tf=1d  limit_confirm sl=wick  ms=3.0 ba=1.0  cands=14159  split=2021-09-30  runs=1800  (524s)
+[ 8/10] tf=1d  limit_confirm sl=wick  ms=3.0 ba=1.0  cands=14159  split=2021-09-30  runs=1800  (609s)
+[ 9/10] tf=1d  limit_confirm sl=zone  ms=3.0 ba=1.0  cands=14159  split=2021-09-30  runs=1800  (690s)
+[10/10] tf=1d  limit_confirm sl=zone  ms=3.0 ba=1.0  cands=14159  split=2021-09-30  runs=1800  (742s)
+
+39600 runs -> sweep.csv   (744s)
+
+mean full-sample expectancy by execution timeframe:
+     runs    exp    oos   trades
+tf                              
+1d  39600 -0.008  0.016  202.312
+
+top 15 by IN-SAMPLE expectancy, with their OOS result (10852 eligible):
+tf entry_mode sl_mode  min_swing  band_atr  min_conf  min_rr  sl_atr_mult  max_legs      mtf confirm  trades  expectancy  win_rate  profit_factor  tstat  is_exp  oos_trades  oos_exp
+1d     market    wick      3.000     1.000         3   1.500        1.500         3    daily     pin      77       0.390     0.416          1.595  1.829   0.722          27   -0.224
+1d      limit    zone      3.000     1.000         4   2.500        1.500         3    daily     any     178       0.487     0.382          1.723  3.179   0.665          80    0.268
+1d      limit    zone      3.000     1.000         5   2.500        1.000         3    daily     any      97       0.303     0.340          1.408  1.469   0.659          41   -0.183
+1d      limit    zone      3.000     1.000         5   2.500        1.000        99    daily     any     113       0.363     0.354          1.498  1.880   0.607          48    0.032
+1d      limit    zone      3.000     1.000         3   2.500        1.500         3 daily+4h     any     113       0.402     0.363          1.586  2.144   0.592          54    0.194
+1d      limit    zone      3.000     1.000         3   2.000        1.500         3    daily     any     107       0.447     0.458          1.780  2.791   0.591          52    0.295
+1d      limit    zone      3.000     1.000         4   2.500        1.500        99    daily     any     214       0.461     0.383          1.680  3.331   0.584         100    0.321
+1d      limit    zone      3.000     1.000         3   2.500        1.500         3    daily     any     240       0.421     0.367          1.607  3.220   0.577         110    0.237
+1d      limit    zone      3.000     1.000         5   2.500        1.500         3    daily     any      91       0.210     0.330          1.280  1.047   0.575          39   -0.276
+1d      limit    zone      3.000     1.000         5   2.500        1.500        99    daily     any     106       0.303     0.349          1.416  1.590   0.563          46   -0.037
+1d     market    wick      3.000     1.000         3   2.000        1.500         3    daily     any      94       0.296     0.362          1.407  1.465   0.561          28   -0.328
+1d      limit    zone      3.000     1.000         4   2.500        1.000         3    daily     any     188       0.436     0.378          1.605  2.759   0.559          83    0.280
+1d      limit    zone      3.000     1.000         4   2.500        1.000        99    daily     any     226       0.444     0.381          1.619  3.071   0.551         104    0.318
+1d      limit    zone      3.000     1.000         4   1.500        1.500         3 daily+4h     any     115       0.306     0.478          1.558  2.269   0.542          48   -0.023
+1d      limit    zone      3.000     1.000         3   2.500        1.500        99 daily+4h     any     158       0.440     0.367          1.644  2.717   0.541          77    0.334

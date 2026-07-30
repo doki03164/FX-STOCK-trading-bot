@@ -114,10 +114,24 @@ def us_universe():
 # Round trip = 0.0855 x2 + 0.30 = 0.471%, call it 50bps with slippage. That is EIGHT
 # TIMES the US figure, and it is why a strategy that works on the S&P can still lose
 # money on the same setups in Taipei.
-TW_COMMISSION_BPS = 8.55 * 2      # 0.0855% each way, discounted online rate
-TW_TAX_BPS = 30.0                 # 證交稅 0.3%, sell side only
+# 手續費 is 0.1425% list price, and every broker discounts it for electronic orders.
+# The discount is the only part of Taiwanese cost you can actually negotiate, so it
+# is a parameter rather than a constant — set TW_FEE_DISCOUNT to your own rate.
+#   1.00 = 牌告 (no discount)      0.60 = 6折
+#   0.38 = 3.8折 (common online)   0.28 = 2.8折 (high volume)
+# Default stays at 6折 so the live scanner and the backtest agree; the sweep was
+# run at that rate. Set the env var to your real rate — but note the ceiling:
+# even 2.8折 only takes 50.1bps down to 41.0, because 30bps of it is tax.
+TW_FEE_DISCOUNT = float(os.environ.get("TW_FEE_DISCOUNT", 0.60))
+TW_FEE_LIST_BPS = 14.25           # 0.1425% 牌告手續費, each way
+TW_COMMISSION_BPS = TW_FEE_LIST_BPS * TW_FEE_DISCOUNT * 2
+TW_TAX_BPS = 30.0                 # 證交稅 0.3% — sell side only, and NOT negotiable
 TW_SLIPPAGE_BPS = 3.0             # chunky tick sizes
 TW_COST_BPS = TW_COMMISSION_BPS + TW_TAX_BPS + TW_SLIPPAGE_BPS
+
+# The tax alone is 5x the entire US round trip. No amount of parameter tuning gets
+# around it, which is why the honest lever for Taiwan is a WIDER stop: cost is a
+# fixed share of notional, so cost_r = cost/risk shrinks as the stop grows.
 
 TW_FALLBACK = {
     "2330.TW": "台積電", "2317.TW": "鴻海", "2454.TW": "聯發科", "2308.TW": "台達電",

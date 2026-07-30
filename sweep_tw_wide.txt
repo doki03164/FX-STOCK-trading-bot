@@ -1,0 +1,42 @@
+15 structural x up to 3600 filter = 54000 runs
+
+[ 1/15] tf=1d  market        sl=wick  ms=3.0 ba=1.0  cands=12196  split=2021-10-20  runs=3600  (58s)
+[ 2/15] tf=1d  market        sl=zone  ms=3.0 ba=1.0  cands=12199  split=2021-10-19  runs=3600  (130s)
+[ 3/15] tf=1d  limit         sl=zone  ms=3.0 ba=1.0  cands=14159  split=2021-09-30  runs=900  (165s)
+[ 4/15] tf=1d  limit_confirm sl=wick  ms=3.0 ba=1.0  cands=14159  split=2021-09-30  runs=900  (199s)
+[ 5/15] tf=1d  limit_confirm sl=zone  ms=3.0 ba=1.0  cands=14159  split=2021-09-30  runs=900  (234s)
+[ 6/15] tf=1d  market        sl=wick  ms=3.0 ba=1.5  cands= 9990  split=2021-08-16  runs=3600  (271s)
+[ 7/15] tf=1d  market        sl=zone  ms=3.0 ba=1.5  cands= 9992  split=2021-08-16  runs=3600  (317s)
+[ 8/15] tf=1d  limit         sl=zone  ms=3.0 ba=1.5  cands=11146  split=2021-07-26  runs=900  (351s)
+[ 9/15] tf=1d  limit_confirm sl=wick  ms=3.0 ba=1.5  cands=11146  split=2021-07-26  runs=900  (384s)
+[10/15] tf=1d  limit_confirm sl=zone  ms=3.0 ba=1.5  cands=11146  split=2021-07-26  runs=900  (418s)
+[11/15] tf=1d  market        sl=wick  ms=3.0 ba=2.0  cands= 7596  split=2021-05-19  runs=3600  (454s)
+[12/15] tf=1d  market        sl=zone  ms=3.0 ba=2.0  cands= 7598  split=2021-05-19  runs=3600  (492s)
+[13/15] tf=1d  limit         sl=zone  ms=3.0 ba=2.0  cands= 8324  split=2021-05-12  runs=900  (527s)
+[14/15] tf=1d  limit_confirm sl=wick  ms=3.0 ba=2.0  cands= 8324  split=2021-05-12  runs=900  (587s)
+[15/15] tf=1d  limit_confirm sl=zone  ms=3.0 ba=2.0  cands= 8324  split=2021-05-12  runs=900  (652s)
+
+29700 runs -> sweep.csv   (654s)
+
+mean full-sample expectancy by execution timeframe:
+     runs    exp    oos   trades
+tf                              
+1d  29700 -0.152 -0.056  177.261
+
+top 15 by IN-SAMPLE expectancy, with their OOS result (7288 eligible):
+tf    entry_mode sl_mode  min_swing  band_atr  min_conf  min_rr  sl_atr_mult  max_legs      mtf confirm  trades  expectancy  win_rate  profit_factor  tstat  is_exp  oos_trades  oos_exp
+1d        market    wick      3.000     2.000         4   1.500        1.500         3    daily     any     102       0.057     0.382          1.080  0.364   0.294          49   -0.200
+1d        market    wick      3.000     2.000         3   1.500        1.500         3    daily     any     109       0.042     0.376          1.059  0.279   0.255          52   -0.191
+1d        market    wick      3.000     1.000         4   1.000        1.500         2      off  engulf     129       0.014     0.419          1.021  0.111   0.238          47   -0.376
+1d        market    wick      3.000     1.000         3   1.000        1.500         2      off  engulf     146      -0.006     0.411          0.992 -0.046   0.214          54   -0.379
+1d        market    wick      3.000     1.500         5   1.000        1.500         3      off     pin     104       0.075     0.452          1.115  0.521   0.176          34   -0.133
+1d        market    wick      3.000     1.000         4   0.500        1.500         2    daily  engulf      93      -0.146     0.441          0.775 -1.162   0.167          40   -0.561
+1d limit_confirm    wick      3.000     1.000         5   1.500        1.500         2    daily     any     128       0.098     0.367          1.433  1.365   0.162          45   -0.018
+1d limit_confirm    zone      3.000     1.000         5   1.500        1.500         2    daily     any     128       0.098     0.367          1.433  1.365   0.162          45   -0.018
+1d limit_confirm    zone      3.000     1.000         5   1.500        1.000         2    daily     any     136       0.080     0.360          1.335  1.148   0.137          48   -0.024
+1d limit_confirm    wick      3.000     1.000         5   1.500        1.000         2    daily     any     136       0.080     0.360          1.335  1.148   0.137          48   -0.024
+1d        market    wick      3.000     2.000         4   1.500        1.500         3      off     pin     126       0.188     0.429          1.285  1.329   0.136          44    0.284
+1d        market    wick      3.000     2.000         4   1.500        1.500        99    daily     any     119       0.000     0.361          1.001  0.003   0.131          55   -0.151
+1d        market    wick      3.000     2.000         4   1.000        1.500        99 daily+4h     any     105      -0.019     0.410          0.972 -0.141   0.129          48   -0.195
+1d        market    wick      3.000     1.500         3   0.500        2.000        99      off  engulf      94       0.039     0.553          1.075  0.335   0.121          33   -0.113
+1d        market    wick      3.000     1.500         3   0.500        1.500         3    daily  engulf     120      -0.111     0.458          0.824 -1.011   0.121          55   -0.385

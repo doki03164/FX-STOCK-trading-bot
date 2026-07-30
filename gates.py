@@ -44,31 +44,48 @@ def _confirm(o, h, l, c, j, dr, wick_frac):
     return bool(w), bool(eng), bool(pin)
 
 
-def _simulate(o, h, l, c, i, entry, sl, tp, dr, start=None):
-    """Walk forward to SL or TP. Both touched in one bar counts as the loss.
+def _simulate(o, h, l, c, i, entry, sl, tp, dr, start=None, atr=None,
+              tp_mode="structure", trail_atr=2.0):
+    """Walk forward to the exit. Both stop and target in one bar counts as the loss.
 
     Stops are gap-aware (filled at the open when price jumped past them); targets
     are not (filled exactly at the limit). Pessimistic on both sides on purpose.
+
+    `tp_mode` is the manual's §09 escape hatch — 已回測驗證的管理法. The default keeps
+    §06's rule (TP = 前一個結構高/低點), which caps reward at whatever the last swing
+    happens to offer. `trail` drops the fixed target and ratchets the stop instead, so
+    a trend that keeps going keeps paying; it is the only way to earn more than the
+    prior extreme allows.
     """
     n = len(c)
+    peak = entry
     for j in range(i + 1 if start is None else start, min(n, i + MAX_HOLD)):
         if dr > 0:
             if l[j] <= sl:
                 return j, min(o[j], sl), "sl"
-            if h[j] >= tp:
+            if tp_mode != "trail" and h[j] >= tp:
                 return j, tp, "tp"
+            if tp_mode == "trail":
+                peak = max(peak, h[j])
+                if atr is not None and np.isfinite(atr[j]):
+                    sl = max(sl, peak - trail_atr * atr[j])   # never loosens
         else:
             if h[j] >= sl:
                 return j, max(o[j], sl), "sl"
-            if l[j] <= tp:
+            if tp_mode != "trail" and l[j] <= tp:
                 return j, tp, "tp"
+            if tp_mode == "trail":
+                peak = min(peak, l[j])
+                if atr is not None and np.isfinite(atr[j]):
+                    sl = min(sl, peak + trail_atr * atr[j])
     j = min(n - 1, i + MAX_HOLD)
     return j, c[j], "time"
 
 
 def scan(sym, tf="1h", swing_n=5, min_swing=2.0, band_atr=0.5, entry_mode="market",
-         sl_mode="wick", wick_frac=0.40, max_wait=24, sr_lookback=600, sr_touches=2,
-         tl_touches=3, sl_buffer=0.2, min_retrace=0.236, max_retrace=0.886):
+         sl_mode="wick", tp_mode="structure", trail_atr=2.0, wick_frac=0.40,
+         max_wait=24, sr_lookback=600, sr_touches=2, tl_touches=3, sl_buffer=0.2,
+         min_retrace=0.236, max_retrace=0.886):
     """Every candidate trade in one pair's history, with its gate attributes.
 
     `tf` is the execution timeframe; its two context frames come from TF_STACK, so
@@ -215,6 +232,10 @@ def scan(sym, tf="1h", swing_n=5, min_swing=2.0, band_atr=0.5, entry_mode="marke
 
             risk = abs(entry - sl)
             tp = ext
+            if tp_mode == "ext":
+                # 1.272 extension of the impulse: the manual's target, pushed one
+                # fib beyond, for markets where the prior extreme is too close
+                tp = ext + dr * 0.272 * abs(ext - base)
             reward = (tp - entry) * dr
             if not np.isfinite(risk) or risk / pip < 2.0 or reward <= 0:
                 break
@@ -237,7 +258,8 @@ def scan(sym, tf="1h", swing_n=5, min_swing=2.0, band_atr=0.5, entry_mode="marke
                 else:
                     xi, xp, why = j, c[j], "scratch"
             else:
-                xi, xp, why = _simulate(o, h, l, c, j, entry, sl, tp, dr, sim_start)
+                xi, xp, why = _simulate(o, h, l, c, j, entry, sl, tp, dr, sim_start,
+                                        atr, tp_mode, trail_atr)
             r_gross = (xp - entry) * dr / risk
             # equities pay a share of notional, FX a fixed spread — cost_px knows
             cost_r = C.cost_px(sym, entry) / risk
@@ -262,6 +284,7 @@ def scan(sym, tf="1h", swing_n=5, min_swing=2.0, band_atr=0.5, entry_mode="marke
         df["tf"] = tf
         df["entry_mode"] = entry_mode
         df["sl_mode"] = sl_mode
+        df["tp_mode"] = tp_mode
         df["swing_n"] = swing_n
         df["min_swing"] = min_swing
         df["band_atr"] = band_atr

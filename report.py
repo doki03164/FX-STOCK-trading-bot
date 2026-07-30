@@ -84,17 +84,35 @@ LADDERS_US = {
     },
 }
 
-# Taiwan, selected from its own 39,600-run daily sweep the same way as the others.
-# Read the numbers before trusting them: only 28 of those runs were positive in both
-# halves — 0.1%, against 2.7% for US daily — and this one's t-stat is 1.09, not the
-# 4.28 the US book manages. Dealing cost is why: 證交稅 0.3% plus commission is 50bps
-# round trip, which costs 0.105R of every trade against 0.018R in the US. The edge
-# the gates find is roughly the size of the tax.
+# Taiwan, daily only — the user's call, and the sweep agrees there is nothing to be
+# gained lower down. Selected from a 59,400-run daily grid the same way as the others.
+#
+# Two things were tested and rejected before settling here:
+#
+#   Wider zones. Cost is a fixed share of notional, so cost_r = cost/risk should fall
+#   as the stop widens — and it does, from 0.093R at band 1.0 to 0.052R at band 2.0.
+#   But the target is pinned to the prior structural extreme, so a wider stop also
+#   crushes RR (median 1.42 -> 0.73). The geometry loses more than the cost saves:
+#   robust cells collapse from 28 to 3. band_atr 1.0 stays.
+#
+#   Commission discounts. Going from 6折 to 2.8折 takes the round trip from 50.1bps to
+#   41.0 — worth having, not decisive, because 30bps of it is 證交稅 and that is not
+#   negotiable. Set TW_FEE_DISCOUNT if your rate is better.
+#
+# What the config below buys over the previous one is not more annual R (2.01 vs 2.07,
+# unchanged) but twice the per-trade edge from half the trades: +0.157R against
+# +0.081R, t-stat 1.50 against 1.09. In a market where every round trip costs 50bps,
+# trading half as often for twice the edge is strictly better. max_legs 2 is GATE 2's
+# maturity cap doing real work here, unlike on the US book.
+#
+# It sits in a 3x3 plateau: every combination of sl_atr_mult 1.0/1.5/2.0 and max_legs
+# 2/3/99 is positive in both halves at min_swing 3.0. min_swing 2.0 turns all nine
+# negative, so that axis is the one that matters.
 LADDERS_TW = {
     "1d": {
         "tf": "1d", "min_swing": 3.0, "band_atr": 1.0,
         "entry_mode": "limit", "sl_mode": "zone",
-        "min_conf": 3, "min_rr": 1.5, "sl_atr_mult": 1.5, "max_legs": 99,
+        "min_conf": 3, "min_rr": 1.5, "sl_atr_mult": 1.5, "max_legs": 2,
         "mtf": "daily+4h", "confirm": "any",
     },
 }
@@ -122,13 +140,24 @@ MANUAL = {
     "mtf": "daily+4h", "confirm": "any",
 }
 
-SKEYS = ["tf", "min_swing", "band_atr", "entry_mode", "sl_mode"]
-FKEYS = ["min_conf", "min_rr", "sl_atr_mult", "max_legs", "mtf", "confirm"]
+SKEYS = ["tf", "min_swing", "band_atr", "entry_mode", "sl_mode", "tp_mode"]
+FKEYS = ["min_conf", "min_rr", "sl_atr_mult", "max_legs", "mtf", "confirm", "side"]
+
+
+DEFAULTS_NEW = {"tp_mode": "structure", "side": "both"}
+
+
+def _cfg(cfg):
+    """Fill axes added after a config was written, so old ladders keep working."""
+    return {**DEFAULTS_NEW, **cfg}
 
 
 def _structural(cand, cfg):
+    cfg = _cfg(cfg)
     m = np.ones(len(cand), bool)
     for k in SKEYS:
+        if k not in cand.columns:          # artefact predates this axis
+            continue
         m &= cand[k].values == cfg[k]
     return cand[m]
 
@@ -230,7 +259,7 @@ def pack_sweep(sw):
 
 def run_config(cand, cfg, label):
     sub = _structural(cand, cfg)
-    rows, kept = funnel(sub, cfg)
+    rows, kept = funnel(sub, _cfg(cfg))
     sel = B.sequence(kept)
     tk, curve, st = B.run(sel)
     # split on the trades the account actually took, not on the pre-portfolio list,
@@ -263,7 +292,7 @@ def tf_compare(cand, sw, cfgs):
         c = cfgs[tf]
         sub = _structural(cand, c)
         e = sub[sub.stage == gates.STAGE["entered"]]
-        sel = B.sequence(e[_mask(e, c)])
+        sel = B.sequence(e[_mask(e, _cfg(c))])
         st = B.r_stats(sel)
         split = split_at(e)
         g = sw[(sw.tf == tf) & (sw.trades >= 40)]
@@ -323,7 +352,7 @@ def ladder_runs(cand, LAD):
     for tf, cfg in LAD.items():
         sub = _structural(cand, cfg)
         e = sub[sub.stage == gates.STAGE["entered"]]
-        sel = B.sequence(e[_mask(e, cfg)]).copy()
+        sel = B.sequence(e[_mask(e, _cfg(cfg))]).copy()
         sel["tf"] = tf
         pooled.append(sel)
         out.append(_acct(sel, C.TF_LABEL[tf], tf, split_at(e)))
@@ -378,7 +407,7 @@ def e1_cliff(cand, cfg):
     e = sub[sub.stage == gates.STAGE["entered"]]
     out = []
     for rr in (0.5, 1.0, 1.5, 2.0, 2.5):
-        sel = B.sequence(e[_mask(e, dict(cfg, min_rr=rr))])
+        sel = B.sequence(e[_mask(e, _cfg(dict(cfg, min_rr=rr)))])
         st = B.r_stats(sel)
         out.append({"rr": rr, "trades": st["trades"],
                     "expectancy": round(st["expectancy"], 4)})

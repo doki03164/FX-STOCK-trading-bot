@@ -33,6 +33,9 @@ STRUCTURAL = {
     "band_atr": [0.75, 1.0],
     "entry_mode": ["market", "limit", "limit_confirm"],
     "sl_mode": ["wick", "zone"],
+    # §09 permits a backtested exit rule of your own. `structure` is the manual's
+    # (TP = prior extreme), `ext` pushes one fib past it, `trail` drops the target.
+    "tp_mode": ["structure"],
 }
 
 FILTERS = {
@@ -45,6 +48,9 @@ FILTERS = {
     "max_legs": [1, 2, 3, 99],
     "mtf": ["off", "daily", "daily+4h"],
     "confirm": ["any", "wick", "pin", "engulf"],
+    # Equities drift up and Taiwan restricts shorting (平盤下不得放空, 強制回補) in ways
+    # this backtest does not model, so the short side is flattered here, not punished.
+    "side": ["both", "long"],
 }
 
 QUICK = {"tf": ["1d"], "min_swing": [3.0], "band_atr": [0.75],
@@ -72,6 +78,8 @@ def _mask(e, f):
         m &= e.d_ok
     if f["mtf"] == "daily+4h":
         m &= e.h4_align
+    if f.get("side", "both") == "long":
+        m &= e.dr > 0
     if f["confirm"] == "wick":
         m &= e.c_wick
     elif f["confirm"] == "pin":
@@ -114,7 +122,7 @@ def main(quick=False):
     for si, s in enumerate(scfg, 1):
         cand = gates.scan_all(C.SYMBOLS, tf=s["tf"], min_swing=s["min_swing"],
                               band_atr=s["band_atr"], entry_mode=s["entry_mode"],
-                              sl_mode=s["sl_mode"])
+                              sl_mode=s["sl_mode"], tp_mode=s.get("tp_mode", "structure"))
         e = cand[cand.stage == gates.STAGE["entered"]].copy()
         keep_cands.append(cand)
         split = split_at(e)
@@ -175,4 +183,13 @@ if __name__ == "__main__":
     C.set_market(a[a.index("--market") + 1] if "--market" in a else "fx")
     if "--tf" in a:
         STRUCTURAL["tf"] = a[a.index("--tf") + 1].split(",")
+    # A high-cost market wants a different structural range: cost is a fixed share of
+    # notional, so cost_r = cost/risk falls as the stop widens. Overridable rather than
+    # hard-coded because the right width is a property of the market, not the strategy.
+    if "--band" in a:
+        STRUCTURAL["band_atr"] = [float(x) for x in a[a.index("--band") + 1].split(",")]
+    if "--tp" in a:
+        STRUCTURAL["tp_mode"] = a[a.index("--tp") + 1].split(",")
+    if "--swing" in a:
+        STRUCTURAL["min_swing"] = [float(x) for x in a[a.index("--swing") + 1].split(",")]
     main(quick="--quick" in a)
