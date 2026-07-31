@@ -1,0 +1,173 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>交易操作手冊 — 儀表板</title>
+<style>
+:root{--bg:#0e1116;--panel:#161b23;--panel2:#1c232d;--line:#2a333f;
+  --tx:#e6edf3;--tx2:#a6b3c2;--tx3:#7d8b9b;--pos:#3987e5;--neg:#d03b3b;
+  --acc:#f0b429;--good:#0ca30c;
+  --mono:ui-monospace,"SFMono-Regular",Consolas,monospace;color-scheme:dark}
+:root[data-theme="light"]{--bg:#fff;--panel:#f7faf7;--panel2:#eef5ee;--line:#d7e5d7;
+  --tx:#0d1b0f;--tx2:#3d5741;--tx3:#6b8470;--pos:#2a78d6;--neg:#c0322e;
+  --acc:#0f8b4c;--good:#0f8b4c;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.65;
+  font-family:system-ui,-apple-system,"Segoe UI","PingFang TC","Noto Sans TC",sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:48px 22px 80px}
+.kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--acc)}
+h1{font-size:clamp(26px,4vw,36px);margin:12px 0 8px;letter-spacing:-.01em}
+p{color:var(--tx2);margin:0 0 14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+  gap:14px;margin:26px 0}
+a.card{display:block;text-decoration:none;color:inherit;background:var(--panel);
+  border:1px solid var(--line);border-radius:13px;padding:18px 20px;transition:.12s}
+a.card:hover{border-color:var(--acc);transform:translateY(-2px)}
+a.card .nm{font-size:19px;font-weight:600;margin-bottom:3px}
+a.card .sub{font-family:var(--mono);font-size:11.5px;color:var(--tx3)}
+a.card .row{display:flex;gap:14px;margin-top:12px;font-size:13px;color:var(--tx2)}
+a.card b{color:var(--tx)}
+.rdy{color:var(--good);font-weight:600}
+.card2{background:var(--panel);border:1px solid var(--line);border-radius:13px;
+  padding:18px 20px;margin:16px 0}
+.card2.warn{border-left:3px solid var(--acc)}
+.card2.bad{border-left:3px solid var(--neg)}
+.card2 .t{font-weight:600;margin-bottom:7px}
+.pill{font-family:var(--mono);font-size:11px;padding:2px 9px;border-radius:5px;
+  border:1px solid var(--line);color:var(--tx3)}
+.pill.dry{background:rgba(240,180,41,.14);color:var(--acc);border-color:var(--acc)}
+.pill.live{background:rgba(208,59,59,.16);color:var(--neg);border-color:var(--neg)}
+.btn{background:var(--acc);color:#14100a;border:none;border-radius:7px;padding:8px 15px;
+  font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.btn.ghost{background:var(--panel2);color:var(--tx2);border:1px solid var(--line)}
+.btn:disabled{opacity:.5;cursor:default}
+.row2{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px}
+label{font-size:13px;color:var(--tx2);display:flex;align-items:center;gap:5px}
+select,input[type=number]{background:var(--panel2);color:var(--tx);
+  border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;font-size:13px}
+code{font-family:var(--mono);font-size:.9em;background:var(--panel2);padding:2px 6px;
+  border-radius:4px;color:var(--acc)}
+.mut{color:var(--tx3)}
+</style>
+
+<div class="wrap">
+  <div class="kicker">Algorithmic Trading Research</div>
+  <h1>交易操作手冊 — 儀表板</h1>
+  <p>把手冊的 GATE 1–7 與 18 項進場前提條件寫成程式，在四個市場上重跑與監控。</p>
+
+  <div class="grid" id="grid"></div>
+
+  <div id="broker"></div>
+
+  <div class="card2">
+    <div class="t">風險聲明</div>
+    <p style="margin:0" class="mut">本專案僅供教育與研究用途，不構成投資建議。交易涉及重大風險，
+      可能導致本金全部損失。回測的樣本外檢驗顯示參數選擇無法穩定外推，請勿將任何一組參數
+      視為可獲利的策略。</p>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+try { document.documentElement.setAttribute('data-theme',
+  localStorage.getItem('fxbot-theme') || 'dark'); } catch (e) {}
+
+async function j(u, o) { return (await fetch(u, o || { cache: 'no-store' })).json(); }
+
+async function loadGrid() {
+  let d;
+  try { d = await j('/api/markets'); } catch (e) { return; }
+  $('#grid').innerHTML = d.markets.map(m => {
+    const bg = m.bitget > 0
+      ? `<span class="pill">Bitget ${m.bitget} 檔可下單</span>`
+      : `<span class="pill" title="${m.bitget_note || ''}">Bitget 不支援</span>`;
+    return `<a class="card" href="${m.href}">
+      <div class="nm">${m.name}</div>
+      <div class="sub">${m.as_of || (m.ready_file ? '' : '尚未建置')}</div>
+      <div class="row">
+        <span>計畫 <b>${m.plans ?? '—'}</b></span>
+        <span class="${m.ready ? 'rdy' : ''}">可下單 <b>${m.ready ?? '—'}</b></span>
+        <span>等待 <b>${m.armed ?? '—'}</b></span>
+      </div>
+      <div class="row">${bg}</div></a>`;
+  }).join('');
+}
+
+async function loadBroker() {
+  let b;
+  try { b = await j('/api/broker'); } catch (e) { return; }
+  if (b.error) return;
+  const arm = b.arm || {};
+  const tradeable = Object.entries(b.tradeable || {});
+  $('#broker').innerHTML = `
+    <div class="card2 ${b.live ? 'bad' : 'warn'}">
+      <div class="t">Bitget 連線
+        <span class="pill ${b.live ? 'live' : 'dry'}">${b.mode}</span></div>
+      <p class="mut" style="margin-bottom:8px">
+        槓桿上限 ${b.max_leverage}x · 單筆風險 ${(b.max_risk_pct*100).toFixed(0)}% ·
+        保證金 ${(b.max_margin_pct*100).toFixed(0)}% · 每日 ${b.max_orders_day} 單
+        ${b.account && b.account.equity
+          ? ` · 帳戶 ${b.account.equity.toLocaleString()} USDT` : ''}</p>
+      ${!b.keys_present
+        ? `<p class="mut" style="margin:0">未設定 API 金鑰，僅公開報價。
+            設定 <code>BITGET_API_KEY</code> / <code>BITGET_API_SECRET</code> /
+            <code>BITGET_API_PASSPHRASE</code> 後執行 <code>python bitget.py</code> 驗證。</p>`
+        : (!b.live
+          ? `<p class="mut" style="margin:0">金鑰有效但仍是模擬模式。
+              設定 <code>BITGET_LIVE=1</code> 才會用真錢。</p>`
+          : `<p style="margin:0;color:var(--neg)"><b>真實下單已啟用。</b>
+              確認後的委託會使用真實資金。</p>`)}
+      <p class="mut" style="margin:10px 0 0">
+        可交易：${tradeable.map(([k, v]) => v).join('、') || '無'}。
+        ${Object.entries(b.untradeable || {}).map(([k, v]) => v).join('；')}。</p>
+
+      <div class="row2" style="border-top:1px solid var(--line);padding-top:12px">
+        ${arm.armed
+          ? `<span style="color:var(--neg)"><b>自動下單已授權</b></span>
+             <span class="mut">剩 ${arm.minutes_left} 分鐘 ·
+               已用 ${arm.used}/${arm.max_orders} 單 · ${(arm.markets||[]).join(',')}</span>
+             <button class="btn" id="disarm">立即解除</button>`
+          : `<label>市場 <select id="am">${tradeable.map(([k, v]) =>
+                `<option value="${k}">${v.split('（')[0]}</option>`).join('')}</select></label>
+             <label>時數 <input type="number" id="ah" value="4" min="1" max="24" style="width:62px"></label>
+             <label>上限單數 <input type="number" id="an" value="2" min="1" max="10" style="width:62px"></label>
+             <button class="btn ghost" id="armbtn">授權自動下單</button>`}
+      </div>
+      ${arm.armed ? '' : `<p class="mut" style="margin:9px 0 0;font-size:12.5px">
+        授權是<b>限時租約</b>不是永久開關：到期自動失效，用完額度也會停。
+        期間內符合全部條件的訊號會自動送出，不再逐筆詢問。</p>`}
+    </div>`;
+
+  const ab = $('#armbtn');
+  if (ab) ab.addEventListener('click', async () => {
+    const mk = $('#am').value, hrs = +$('#ah').value, n = +$('#an').value;
+    const live = b.live;
+    const msg = (live
+      ? `⚠ 真實資金自動下單\n\n接下來 ${hrs} 小時內，最多 ${n} 筆符合條件的訊號會`
+        + `\n【自動用真錢送出】，不會再逐筆問你。\n\n`
+      : `模擬模式自動下單\n\n接下來 ${hrs} 小時內最多 ${n} 筆會自動「模擬」送出，`
+        + `\n不會動到真錢。\n\n`)
+      + `市場：${mk}\n\n`
+      + `提醒：這套策略的樣本外表現很弱 —— 外匯 +0.043R，`
+      + `\n台股約等於證交稅，商品 316,800 組回測中 0 組通過驗證。\n\n`
+      + `確定要授權嗎？`;
+    if (!confirm(msg)) return;
+    if (live && !confirm('最後確認：這會用真錢自動下單。真的要繼續嗎？')) return;
+    ab.disabled = true;
+    await j('/api/autotrade', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ arm: true, hours: hrs, max_orders: n, markets: [mk] }) });
+    loadBroker();
+  });
+  const db = $('#disarm');
+  if (db) db.addEventListener('click', async () => {
+    await j('/api/autotrade', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ arm: false }) });
+    loadBroker();
+  });
+}
+
+loadGrid(); loadBroker();
+setInterval(loadGrid, 10000);
+setInterval(loadBroker, 15000);
+</script>

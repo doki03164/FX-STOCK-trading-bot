@@ -26,3 +26,5 @@ env/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+autotrade.json      # the auto-trade lease is machine-local state

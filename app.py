@@ -90,6 +90,18 @@ def scan(fetch=True):
             with LOCK:
                 STATE["step"] = f"{m} 重建儀表板"
             run("report.py", "--market", m)
+            try:
+                import bitget as BG, json as _j
+                if BG.arm_status().get("armed"):
+                    bk = _j.load(open(os.path.join(HERE, f"plan_{m}.json"),
+                                      encoding="utf-8"))
+                    eq = (BG.account().get("equity") if BG.status()["keys_present"]
+                          else bk.get("equity", 100000))
+                    r = BG.auto_run(bk["plans"], m, eq or bk.get("equity", 100000))
+                    for f in r.get("fired", []):
+                        say(f"[auto] SENT {f['name']} {f['side']} @ {f['price']}")
+            except Exception as e:
+                say(f"! auto-trade: {type(e).__name__}: {str(e)[:70]}")
         with LOCK:
             STATE["last"] = time.strftime("%Y-%m-%d %H:%M:%S")
         say("完成")
@@ -135,7 +147,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         p = urllib.parse.urlparse(self.path).path
-        if p in ("/", "/index.html", "/fx"):
+        if p in ("/", "/index.html"):
+            self.path = "/home.html"
+        elif p == "/fx":
             self.path = "/dashboard_fx.html"
         elif p.strip("/") in MARKETS:
             self.path = f"/dashboard_{p.strip('/')}.html"
@@ -164,6 +178,32 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                    "at": time.strftime("%H:%M:%S")})
             except Exception as e:
                 return self._json({"error": f"{type(e).__name__}: {e}"[:200]}, 500)
+        elif p == "/api/markets":
+            import markets as MK
+            out = []
+            for m in ("fx", "us", "tw", "cm"):
+                row = {"market": m, "name": MK.MARKETS[m]["name"], "href": "/" + m,
+                       "ready_file": os.path.exists(
+                           os.path.join(HERE, f"dashboard_{m}.html"))}
+                pf = os.path.join(HERE, f"plan_{m}.json")
+                if os.path.exists(pf):
+                    try:
+                        bk = json.load(open(pf, encoding="utf-8"))
+                        st = {}
+                        for x in bk["plans"]:
+                            st[x["state"]] = st.get(x["state"], 0) + 1
+                        row.update(plans=len(bk["plans"]), ready=st.get("ready", 0),
+                                   armed=st.get("armed", 0), as_of=bk.get("as_of"))
+                    except Exception:
+                        pass
+                try:
+                    import bitget as BG
+                    row["bitget"] = len(BG.symbol_map(m))
+                    row["bitget_note"] = BG.UNTRADEABLE.get(m, "")
+                except Exception:
+                    pass
+                out.append(row)
+            return self._json({"markets": out})
         elif p == "/api/broker":
             try:
                 import bitget as BG
@@ -172,6 +212,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 s["spreads_bps"] = BG.spreads_bps()
                 if s["keys_present"]:
                     s["account"] = BG.account()
+                s["arm"] = BG.arm_status()
+                s["tradeable"] = BG.TRADEABLE_MARKETS
+                s["untradeable"] = BG.UNTRADEABLE
+                s["market_symbols"] = {m: len(BG.symbol_map(m))
+                                       for m in ("fx", "us", "tw", "cm")}
                 return self._json(s)
             except Exception as e:
                 return self._json({"error": f"{type(e).__name__}: {e}"[:160]}, 500)
@@ -207,6 +252,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         nobody looked at. bitget.place() enforces dry-run on top of this.
         """
         p = urllib.parse.urlparse(self.path).path
+        if p == "/api/autotrade":
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                req = json.loads(self.rfile.read(n) or b"{}")
+                import bitget as BG
+                if not req.get("arm"):
+                    say("[auto] disarmed")
+                    return self._json(BG.disarm())
+                r = BG.arm(hours=req.get("hours", 4),
+                           max_orders=req.get("max_orders", 2),
+                           markets=req.get("markets", ["cm"]))
+                say(f"[auto] armed {r.get('minutes_left')}min / "
+                    f"{r.get('max_orders')} orders / {r.get('markets')} "
+                    f"({BG.status()['mode']})")
+                return self._json(r)
+            except Exception as e:
+                return self._json({"error": f"{type(e).__name__}: {e}"[:160]}, 500)
         if p != "/api/order":
             return self._json({"error": "not found"}, 404)
         try:

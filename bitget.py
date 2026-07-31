@@ -53,12 +53,63 @@ MAX_ORDERS_DAY = int(os.environ.get("BITGET_MAX_ORDERS_DAY", 2))
 # risk limit does, and it is the check that stops a "small" trade eating the book.
 MAX_MARGIN_PCT = float(os.environ.get("BITGET_MAX_MARGIN_PCT", 0.80))
 
-# Bitget perp symbol -> the Yahoo ticker the backtest and the plans use
-SYMBOL_MAP = {
+# Bitget perp symbol -> the Yahoo ticker the backtest and the plans use.
+# Metals are hard-coded; US single-stock perps are discovered at runtime because the
+# listing changes. FOREX IS ABSENT ON PURPOSE: Bitget keeps its FX pairs on the CFD
+# board, which has no public API, so there is nothing to connect to.
+METAL_MAP = {
     "GC=F": "XAUUSDT", "SI=F": "XAGUSDT",
     "PL=F": "XPTUSDT", "PA=F": "XPDUSDT", "HG=F": "COPPERUSDT",
 }
+_US_MAP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "data", "us", "bitget_map.json")
+
+
+def us_map():
+    """Yahoo ticker -> Bitget perp, for the S&P names Bitget actually lists."""
+    try:
+        return json.load(open(_US_MAP_FILE, encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def refresh_us_map():
+    """Re-discover which of our US universe Bitget carries. Public data only."""
+    import config as C
+    prev = C.MARKET
+    try:
+        C.set_market("us")
+        t = tickers()
+        m = {s: f"{s}USDT" for s in C.SYMBOLS if f"{s}USDT" in t}
+        os.makedirs(os.path.dirname(_US_MAP_FILE), exist_ok=True)
+        json.dump(m, open(_US_MAP_FILE, "w", encoding="utf-8"), indent=1)
+        return m
+    finally:
+        C.set_market(prev)
+
+
+def symbol_map(market=None):
+    """What can actually be traded, for a market or for all of them."""
+    if market == "cm":
+        return dict(METAL_MAP)
+    if market == "us":
+        return us_map()
+    if market in ("fx", "tw"):
+        return {}          # Bitget lists neither via the public API
+    return {**METAL_MAP, **us_map()}
+
+
+SYMBOL_MAP = symbol_map()
 REVERSE_MAP = {v: k for k, v in SYMBOL_MAP.items()}
+
+TRADEABLE_MARKETS = {
+    "cm": "金屬（黃金/白銀/白金/鈀/銅）",
+    "us": "美股（Bitget 上架的個股永續）",
+}
+UNTRADEABLE = {
+    "fx": "Bitget 的外匯在 CFD 板，無公開 API",
+    "tw": "Bitget 沒有台股",
+}
 
 _ORDER_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "orders.jsonl")
 
@@ -139,7 +190,7 @@ def quotes(yahoo_syms=None):
     """
     t = tickers()
     out = {}
-    for ysym, bsym in SYMBOL_MAP.items():
+    for ysym, bsym in symbol_map().items():
         if yahoo_syms and ysym not in yahoo_syms:
             continue
         x = t.get(bsym)
@@ -152,7 +203,7 @@ def spreads_bps():
     """Real half-spread cost per instrument, to replace guessed constants."""
     t = tickers()
     out = {}
-    for ysym, bsym in SYMBOL_MAP.items():
+    for ysym, bsym in METAL_MAP.items():
         x = t.get(bsym)
         if not x:
             continue
@@ -210,9 +261,8 @@ def preflight(plan, equity, leverage=1):
     """Every reason this order must not be sent. Empty list means it may proceed."""
     bad = []
     sym = plan.get("sym")
-    if sym not in SYMBOL_MAP:
-        bad.append(f"{sym} 不在 Bitget 可交易清單（只支援 "
-                   f"{', '.join(sorted(SYMBOL_MAP))}）")
+    if sym not in symbol_map():
+        bad.append(f"{sym} 在 Bitget 上沒有對應合約")
     if plan.get("state") != "ready":
         bad.append(f"計畫狀態是 {plan.get('state')}，只有 ready 能下單")
     if plan.get("failed"):
@@ -246,7 +296,7 @@ def preflight(plan, equity, leverage=1):
 def build_ticket(plan, equity, leverage=1):
     """The exact order that would be sent, plus every reason it might not be."""
     sym = plan.get("sym")
-    bsym = SYMBOL_MAP.get(sym, "")
+    bsym = symbol_map().get(sym, "")
     dr = int(plan.get("dr", 0))
     entry, sl, tp = (float(plan.get(k, 0)) for k in ("entry", "sl", "tp"))
     risk_px = abs(entry - sl)
@@ -320,6 +370,90 @@ def _log(rec):
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
+
+
+# ---------------------------------------------------------------- auto-trade
+# Arming is deliberately a LEASE, not a switch. A permanent "auto-trade on" flag is
+# the thing that quietly empties an account three weeks after you forgot about it,
+# so this expires on its own and has to be renewed on purpose.
+_ARM_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "autotrade.json")
+MAX_ARM_HOURS = 24
+MAX_ARM_ORDERS = 10
+
+
+def arm_status():
+    try:
+        a = json.load(open(_ARM_FILE, encoding="utf-8"))
+    except Exception:
+        return {"armed": False}
+    left = a.get("expires_at", 0) - time.time()
+    if left <= 0 or a.get("used", 0) >= a.get("max_orders", 0):
+        return {"armed": False, "expired": True,
+                "used": a.get("used", 0), "max_orders": a.get("max_orders", 0)}
+    return {"armed": True, "minutes_left": int(left / 60),
+            "used": a.get("used", 0), "max_orders": a.get("max_orders"),
+            "markets": a.get("markets", []), "mode": status()["mode"]}
+
+
+def arm(hours=4, max_orders=2, markets=("cm",)):
+    hours = max(0.25, min(float(hours), MAX_ARM_HOURS))
+    max_orders = max(1, min(int(max_orders), MAX_ARM_ORDERS))
+    markets = [m for m in markets if m in TRADEABLE_MARKETS]
+    if not markets:
+        return {"armed": False, "error": "no tradeable market selected"}
+    json.dump({"expires_at": time.time() + hours * 3600, "max_orders": max_orders,
+               "used": 0, "markets": markets, "armed_at": _now()},
+              open(_ARM_FILE, "w", encoding="utf-8"))
+    return arm_status()
+
+
+def disarm():
+    try:
+        os.remove(_ARM_FILE)
+    except FileNotFoundError:
+        pass
+    return {"armed": False, "disarmed": True}
+
+
+def _consume_arm():
+    try:
+        a = json.load(open(_ARM_FILE, encoding="utf-8"))
+        a["used"] = a.get("used", 0) + 1
+        json.dump(a, open(_ARM_FILE, "w", encoding="utf-8"))
+    except Exception:
+        pass
+
+
+def auto_run(plans, market, equity):
+    """Fire every plan that is ready AND passes every gate. Respects the lease.
+
+    This is the only path that places an order without a click, so it is the most
+    conservative one: it re-checks the lease between orders, never retries a
+    refusal, and burns a slot for each order it sends.
+    """
+    st = arm_status()
+    if not st.get("armed"):
+        return {"fired": [], "reason": "not_armed"}
+    if market not in st.get("markets", []):
+        return {"fired": [], "reason": "market not in this lease"}
+    fired, skipped = [], []
+    for p in plans:
+        if arm_status().get("armed") is not True:
+            break
+        if p.get("state") != "ready":
+            continue
+        t = build_ticket(p, equity)
+        if t["blockers"]:
+            skipped.append({"name": p.get("name"), "why": t["blockers"][0]})
+            continue
+        r = place(p, equity, confirm_token=fingerprint(t))
+        if r.get("sent"):
+            _consume_arm()
+            fired.append({"name": p.get("name"), "symbol": t["symbol"],
+                          "side": t["side"], "price": t["price"]})
+        else:
+            skipped.append({"name": p.get("name"), "why": r.get("reason")})
+    return {"fired": fired, "skipped": skipped, "arm": arm_status()}
 
 
 def check():
