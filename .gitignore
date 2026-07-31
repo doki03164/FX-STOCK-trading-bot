@@ -10,6 +10,7 @@ plan*.json
 events*.jsonl
 state*.json
 *_log.txt
+orders.jsonl        # your own trade log — personal, never committed
 
 # ---------------------------------------------------------------- python
 __pycache__/

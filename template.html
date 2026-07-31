@@ -145,6 +145,24 @@ tbody tr:hover td{background:var(--panel2)}
 .dist{height:5px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:7px}
 .dist i{display:block;height:100%;background:var(--acc);border-radius:3px}
 
+.brk{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}
+.brk .pill{font-family:var(--mono);font-size:11px;padding:2px 9px;border-radius:5px;
+  border:1px solid var(--line)}
+.brk .pill.dry{background:rgba(240,180,41,.14);color:var(--acc);border-color:var(--acc)}
+.brk .pill.live{background:rgba(208,59,59,.16);color:var(--neg);border-color:var(--neg)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:80;display:flex;
+  align-items:center;justify-content:center;padding:20px}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:22px 24px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto}
+.modal h3{margin:0 0 14px;font-size:17px;color:var(--tx)}
+.modal table{font-size:13px;margin-bottom:14px}
+.modal td:first-child{color:var(--tx3);width:44%}
+.modal td:last-child{font-family:var(--mono);color:var(--tx)}
+.modal .acts{display:flex;gap:9px;justify-content:flex-end;margin-top:6px}
+.blk{background:rgba(208,59,59,.1);border:1px solid rgba(208,59,59,.35);
+  border-radius:8px;padding:10px 13px;font-size:12.5px;color:var(--tx2);margin-bottom:12px}
+.blk b{color:var(--neg)}
+
 .feed{max-height:270px;overflow-y:auto}
 .feed .ev{display:grid;grid-template-columns:132px 128px 1fr;gap:11px;align-items:baseline;
   padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
@@ -200,11 +218,13 @@ tbody tr:hover td{background:var(--panel2)}
 
 <section id="tab-live">
   <div id="live_head"></div>
+  <div class="brk" id="broker_bar"></div>
   <div id="live_feed"></div>
   <div class="ctrls" id="live_ctrl"></div>
   <div id="live_list"></div>
   <div id="live_note"></div>
 </section>
+<div id="modal_host"></div>
 
 <section id="tab-research" class="hidden">
 
@@ -520,6 +540,86 @@ if (location.protocol.startsWith('http')) {
     .join('');
 }
 
+/* ---------- Bitget order ticket ----------
+   The button only ever OPENS a ticket. Sending needs a second, explicit click on a
+   dialog showing the exact prices, and the server re-prices and re-checks every gate
+   before it will act — the fingerprint means a page that has drifted cannot fire an
+   order at a price nobody looked at. Default is dry-run. */
+let BROKER = null;
+async function loadBroker() {
+  if (!SERVED) return;
+  try { BROKER = await (await fetch('/api/broker', { cache: 'no-store' })).json(); }
+  catch (e) { BROKER = null; }
+  const el0 = $('#broker_bar');
+  if (!el0 || !BROKER || BROKER.error) return;
+  const live = BROKER.live;
+  el0.innerHTML = `<span class="pill ${live ? 'live' : 'dry'}">${BROKER.mode}</span>
+    <span class="mut">Bitget · 槓桿上限 ${BROKER.max_leverage}x ·
+      單筆風險 ${(BROKER.max_risk_pct * 100).toFixed(0)}% ·
+      保證金 ${(BROKER.max_margin_pct * 100).toFixed(0)}% ·
+      每日 ${BROKER.max_orders_day} 單</span>
+    ${BROKER.account && BROKER.account.equity
+      ? `<span class="mut">帳戶 ${BROKER.account.equity.toLocaleString()} USDT</span>` : ''}
+    ${live ? '<span class="dn"><b>真實下單已啟用</b></span>'
+           : '<span class="mut">模擬模式：不會送出任何委託</span>'}`;
+}
+
+function closeModal() { $('#modal_host').innerHTML = ''; }
+
+async function openTicket(key) {
+  const mk = D.market || 'fx';
+  const host = $('#modal_host');
+  host.innerHTML = `<div class="modal"><div class="box"><h3>準備委託…</h3></div></div>`;
+  let t;
+  try {
+    t = await (await fetch(`/api/ticket?market=${mk}&key=${encodeURIComponent(key)}`,
+                           { cache: 'no-store' })).json();
+  } catch (e) { host.innerHTML = ''; return; }
+  if (t.error) {
+    host.innerHTML = `<div class="modal"><div class="box"><h3>無法建立委託</h3>
+      <div class="blk">${t.error}</div>
+      <div class="acts"><button class="btn ghost" onclick="closeModal()">關閉</button></div>
+      </div></div>`;
+    return;
+  }
+  const blocked = (t.blockers || []).length > 0;
+  const rows = [['交易所商品', t.symbol], ['方向', t.side === 'buy' ? '買進 (多)' : '賣出 (空)'],
+    ['委託價', t.price], ['數量', t.size], ['停損 SL', t.presetStopLossPrice],
+    ['停利 TP', t.presetStopSurplusPrice], ['名目', '$' + (t.notional_usdt || 0).toLocaleString()],
+    ['保證金使用率', (t.margin_pct ?? '—') + '%'], ['風險', '$' + (t.risk_usdt || 0).toLocaleString()],
+    ['目標', '$' + (t.reward_usdt || 0).toLocaleString()], ['槓桿', t.leverage + 'x'],
+    ['模式', t.mode]];
+  host.innerHTML = `<div class="modal"><div class="box">
+    <h3>${t.name} — ${t.mode === 'LIVE' ? '真實委託' : '模擬委託'}</h3>
+    ${blocked ? `<div class="blk"><b>此單被阻擋：</b><br>${t.blockers.join('<br>')}</div>` : ''}
+    ${t.mode === 'LIVE' && !blocked
+      ? '<div class="blk"><b>這會用真錢下單。</b>按下送出即成交，無法撤回。</div>' : ''}
+    <table><tbody>${rows.map(([a, b]) =>
+      `<tr><td>${a}</td><td>${b}</td></tr>`).join('')}</tbody></table>
+    <div class="acts">
+      <button class="btn ghost" onclick="closeModal()">取消</button>
+      <button class="btn" id="do_send" ${blocked ? 'disabled' : ''}>
+        ${blocked ? '無法送出' : (t.mode === 'LIVE' ? '確認送出真實委託' : '送出（模擬）')}
+      </button></div></div></div>`;
+  if (!blocked) {
+    $('#do_send').addEventListener('click', async () => {
+      const b = $('#do_send'); b.disabled = true; b.textContent = '送出中…';
+      let r;
+      try {
+        r = await (await fetch('/api/order', { method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ market: mk, key, token: t.fingerprint }) })).json();
+      } catch (e) { r = { sent: false, reason: String(e) }; }
+      host.innerHTML = `<div class="modal"><div class="box">
+        <h3>${r.sent ? '已送出' : '未送出'}</h3>
+        <div class="blk">${r.sent ? '委託已送到 Bitget。'
+          : (r.detail || r.reason || '未知原因')}</div>
+        <div class="acts"><button class="btn" onclick="closeModal();location.reload()">
+          關閉</button></div></div></div>`;
+    });
+  }
+}
+
 /* ---------- 10-second live re-pricing ----------
    Updates the cards in place from fresh quotes. A full re-scan still happens on
    the bar close; this only answers "has price reached the zone yet", which is the
@@ -565,8 +665,9 @@ if (SERVED && D.plan) {
       if (moved && Date.now() - lastChange > 4000) { lastChange = Date.now(); renderLive(); }
     } catch (e) {}
   }
-  live();
+  loadBroker().then(() => { live(); renderLive(); });
   setInterval(live, 10000);
+  setInterval(loadBroker, 60000);
 }
 
 /* ---------- theme wiring + 10s live refresh ---------- */
@@ -641,6 +742,10 @@ function liveCard(p) {
       下單時 SL 與 TP 必須同時掛上，然後關掉平台。</span>
       <span class="lb">共振因素</span>${p.factors.join(' · ')}
     </div>
+    ${SERVED && p.state === 'ready' && BROKER && (BROKER.quotes || {})[p.sym] !== undefined
+      ? `<div style="margin-top:12px"><button class="btn"
+           onclick="openTicket('${p.sym}|${p.tf}')">
+           ${BROKER.live ? '下單（真實）' : '下單（模擬）'}</button></div>` : ''}
     ${p.why ? `<div class="fail" data-why>⚠ <b>${p.why}</b></div>` : '<div class="fail hidden" data-why></div>'}
     ${p.failed.length ? `<div class="fail">未通過：<b>${p.failed.join('、')}</b></div>` : ''}
   </div>`;

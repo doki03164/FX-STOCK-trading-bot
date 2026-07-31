@@ -164,10 +164,75 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                    "at": time.strftime("%H:%M:%S")})
             except Exception as e:
                 return self._json({"error": f"{type(e).__name__}: {e}"[:200]}, 500)
+        elif p == "/api/broker":
+            try:
+                import bitget as BG
+                s = BG.status()
+                s["quotes"] = BG.quotes()
+                s["spreads_bps"] = BG.spreads_bps()
+                if s["keys_present"]:
+                    s["account"] = BG.account()
+                return self._json(s)
+            except Exception as e:
+                return self._json({"error": f"{type(e).__name__}: {e}"[:160]}, 500)
+        elif p.startswith("/api/ticket"):
+            # build-only: shows exactly what would be sent, sends nothing
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            try:
+                import bitget as BG, json as _j
+                mk = (q.get("market") or ["cm"])[0]
+                key = (q.get("key") or [""])[0]
+                book = _j.load(open(os.path.join(HERE, f"plan_{mk}.json"),
+                                    encoding="utf-8"))
+                pl = next((x for x in book["plans"]
+                           if f"{x['sym']}|{x['tf']}" == key), None)
+                if not pl:
+                    return self._json({"error": "plan not found"}, 404)
+                eq = BG.account().get("equity") if BG.status()["keys_present"]                     else book.get("equity", 100000)
+                t = BG.build_ticket(pl, eq or book.get("equity", 100000))
+                t["fingerprint"] = BG.fingerprint(t)
+                return self._json(t)
+            except Exception as e:
+                return self._json({"error": f"{type(e).__name__}: {e}"[:160]}, 500)
         elif p == "/api/scan":                 # GET so a plain link works too
             ok = threading.Thread(target=scan, daemon=True).start() or True
             return self._json({"started": ok})
         return super().do_GET()
+
+    def do_POST(self):
+        """Order placement. POST only, and never from a bare link.
+
+        The confirm token is the fingerprint of the ticket the human actually saw,
+        so a page that has drifted out of date cannot fire an order at a price
+        nobody looked at. bitget.place() enforces dry-run on top of this.
+        """
+        p = urllib.parse.urlparse(self.path).path
+        if p != "/api/order":
+            return self._json({"error": "not found"}, 404)
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+            req = json.loads(self.rfile.read(n) or b"{}")
+            import bitget as BG, json as _j
+            mk = req.get("market", "cm")
+            book = _j.load(open(os.path.join(HERE, f"plan_{mk}.json"),
+                                encoding="utf-8"))
+            pl = next((x for x in book["plans"]
+                       if f"{x['sym']}|{x['tf']}" == req.get("key")), None)
+            if not pl:
+                return self._json({"sent": False, "reason": "plan not found"}, 404)
+            # re-price before deciding: a plan that went stale between render and
+            # click must not be tradeable
+            import quotes as Q
+            upd, _, _ = Q.repriced([pl], mk)
+            pl = {**pl, **upd.get(req.get("key"), {})}
+            eq = BG.account().get("equity") if BG.status()["keys_present"]                 else book.get("equity", 100000)
+            r = BG.place(pl, eq or book.get("equity", 100000),
+                         confirm_token=req.get("token"))
+            say(f"[order] {pl['name']} {r['reason']} ({BG.status()['mode']})")
+            return self._json(r)
+        except Exception as e:
+            return self._json({"sent": False,
+                               "reason": f"{type(e).__name__}: {e}"[:160]}, 500)
 
     def end_headers(self):
         if self.path.endswith(".html"):
